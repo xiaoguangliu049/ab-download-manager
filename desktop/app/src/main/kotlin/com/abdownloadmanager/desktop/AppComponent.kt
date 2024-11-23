@@ -529,6 +529,14 @@ class AppComponent(
                 description = Res.string.finished.asStringSource(),
                 type = NotificationType.Success,
             )
+            if (appSettings.showDownloadCompletionDialog.value) {
+                openDownloadDialog(it.downloadItem.id)
+            }
+        }
+        if (it is DownloadManagerEvents.OnJobStarting) {
+            if (appSettings.showDownloadProgressDialog.value) {
+                openDownloadDialog(it.downloadItem.id)
+            }
         }
     }
 
@@ -723,8 +731,29 @@ class AppComponent(
         }
     }
 
-    fun requestClose() {
+    private val _showConfirmExitDialog = MutableStateFlow(false)
+    val showConfirmExitDialog = _showConfirmExitDialog.asStateFlow()
+
+    fun exitAppAsync() {
+        scope.launch { exitApp() }
+    }
+
+    suspend fun exitApp() {
+        downloadSystem.stopAnything()
         exitProcess(0)
+    }
+
+    fun closeConfirmExit() {
+        _showConfirmExitDialog.value = false
+    }
+
+    suspend fun requestExitApp() {
+        val hasActiveDownloads = downloadSystem.downloadMonitor.activeDownloadCount.value > 0
+        if (hasActiveDownloads) {
+            _showConfirmExitDialog.value = true
+            return
+        }
+        exitApp()
     }
 
     fun openAbout() {
