@@ -12,6 +12,7 @@ import com.abdownloadmanager.desktop.pages.home.HomeComponent
 import com.abdownloadmanager.desktop.pages.queue.QueuesComponent
 import com.abdownloadmanager.desktop.pages.settings.SettingsComponent
 import com.abdownloadmanager.desktop.pages.singleDownloadPage.SingleDownloadComponent
+import com.abdownloadmanager.desktop.pages.updater.UpdateComponent
 import com.abdownloadmanager.desktop.repository.AppRepository
 import com.abdownloadmanager.desktop.storage.AppSettingsStorage
 import com.abdownloadmanager.desktop.ui.widget.MessageDialogModel
@@ -39,8 +40,10 @@ import ir.amirab.downloader.utils.OnDuplicateStrategy
 import com.abdownloadmanager.integration.Integration
 import com.abdownloadmanager.integration.IntegrationResult
 import com.abdownloadmanager.resources.*
+import com.abdownloadmanager.utils.DownloadSystem
 import com.abdownloadmanager.utils.category.CategoryManager
 import com.abdownloadmanager.utils.category.CategorySelectionMode
+import com.arkivanov.decompose.childContext
 import ir.amirab.downloader.exception.TooManyErrorException
 import ir.amirab.downloader.monitor.isDownloadActiveFlow
 import ir.amirab.util.compose.StringSource
@@ -260,7 +263,6 @@ class AppComponent(
                             startNewDownload(
                                 item = item,
                                 onDuplicateStrategy = onDuplicate,
-                                openDownloadDialog = true,
                                 categoryId = categoryId,
                             )
                             closeAddDownloadDialog(config.id)
@@ -710,7 +712,6 @@ class AppComponent(
     fun startNewDownload(
         item: DownloadItem,
         onDuplicateStrategy: OnDuplicateStrategy,
-        openDownloadDialog: Boolean,
         categoryId: Long?,
     ) {
         scope.launch {
@@ -722,11 +723,6 @@ class AppComponent(
             )
             launch {
                 downloadSystem.manualResume(id)
-            }
-            if (openDownloadDialog) {
-                launch {
-                    openDownloadDialog(id)
-                }
             }
         }
     }
@@ -853,13 +849,15 @@ class AppComponent(
         ).all { it }
     }
 
-    //    TODO enable updater
-//    val updater = UpdateComponent(childContext("updater"))
+    val updater = UpdateComponent(
+        childContext("updater"),
+        this,
+    )
     val showAboutPage = MutableStateFlow(false)
     val showOpenSourceLibraries = MutableStateFlow(false)
     val showTranslators = MutableStateFlow(false)
     val theme = appRepository.theme
-//    val uiScale = appRepository.uiScale
+    val uiScale = appRepository.uiScale
 }
 
 interface DownloadDialogManager {

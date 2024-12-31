@@ -1,4 +1,4 @@
-package com.abdownloadmanager.desktop.utils
+package com.abdownloadmanager.utils
 
 import com.abdownloadmanager.utils.category.CategoryItemWithId
 import com.abdownloadmanager.utils.category.CategoryManager
@@ -6,13 +6,13 @@ import com.abdownloadmanager.utils.category.CategorySelectionMode
 import ir.amirab.downloader.DownloadManager
 import ir.amirab.downloader.db.IDownloadListDb
 import ir.amirab.downloader.downloaditem.*
-import ir.amirab.downloader.downloaditem.contexts.RemovedBy
 import ir.amirab.downloader.downloaditem.contexts.ResumedBy
 import ir.amirab.downloader.downloaditem.contexts.StoppedBy
 import ir.amirab.downloader.downloaditem.contexts.User
+import ir.amirab.downloader.monitor.IDownloadItemState
 import ir.amirab.downloader.monitor.IDownloadMonitor
+import ir.amirab.downloader.monitor.ProcessingDownloadItemState
 import ir.amirab.downloader.monitor.isDownloadActiveFlow
-import ir.amirab.downloader.monitor.statusOrFinished
 import ir.amirab.downloader.queue.QueueManager
 import ir.amirab.downloader.utils.OnDuplicateStrategy
 import kotlinx.coroutines.CoroutineScope
@@ -109,16 +109,29 @@ class DownloadSystem(
         return downloadId
     }
 
-    suspend fun removeDownload(id: Long, alsoRemoveFile: Boolean) {
-        downloadManager.deleteDownload(id, alsoRemoveFile, RemovedBy(User))
+    suspend fun removeDownload(
+        id: Long,
+        alsoRemoveFile: Boolean,
+        context: DownloadItemContext,
+    ) {
+        downloadManager.deleteDownload(id, {
+            if (it.status == DownloadStatus.Completed) {
+                alsoRemoveFile
+            } else {
+                // always remove file if download is not finished!
+                true
+            }
+        }, context)
         categoryManager.removeItemInCategories(listOf(id))
     }
 
     suspend fun manualResume(id: Long): Boolean {
-//        if (mainDownloadQueue.isQueueActive) {
-//            return false
-//        }
-        downloadManager.resume(id, ResumedBy(User))
+        manualResume(id, ResumedBy(User))
+        return true
+    }
+
+    suspend fun manualResume(id: Long, context: DownloadItemContext): Boolean {
+        downloadManager.resume(id, context)
         return true
     }
 
@@ -195,6 +208,17 @@ class DownloadSystem(
         return downloadManager.calculateOutputFile(downloadItem)
     }
 
+    fun getDownloadItemByPath(path: String): IDownloadItemState? {
+        return downloadMonitor.downloadListFlow.value.find {
+            it.getFullPath().path == path
+        }
+    }
+    fun getDownloadItemsByFolder(folder: String): List<IDownloadItemState> {
+        return downloadMonitor.downloadListFlow.value.filter {
+            it.folder == folder
+        }
+    }
+
 
     suspend fun getFilePathById(id: Long): File? {
         val item = getDownloadItemById(id) ?: return null
@@ -222,6 +246,25 @@ class DownloadSystem(
             it.id
         }
     }
+
+    fun isDownloadMissingFileOrHaveNotProgress(downloadItem: IDownloadItemState): Boolean {
+        val missingFileBypass = if (downloadItem is ProcessingDownloadItemState) {
+            // some downloads not started yet so there is no file belong to them, so we shouldn't remove them
+            downloadItem.hasProgress
+        } else {
+            // finished downloads can be removed
+            true
+        }
+        return missingFileBypass && !downloadItem.getFullPath().exists()
+    }
+
+    fun getListOfDownloadThatMissingFileOrHaveNotProgress(): List<IDownloadItemState> {
+        val downloads = downloadMonitor.downloadListFlow.value
+        return downloads.filter {
+            isDownloadMissingFileOrHaveNotProgress(it)
+        }
+    }
+
     fun getAllRegisteredDownloadFiles(): List<File> {
         return downloadMonitor.run {
             activeDownloadListFlow.value + completedDownloadListFlow.value

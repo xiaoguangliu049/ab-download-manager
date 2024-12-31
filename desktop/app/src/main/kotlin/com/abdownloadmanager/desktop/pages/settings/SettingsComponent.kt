@@ -106,6 +106,21 @@ fun useSparseFileAllocation(appRepository: AppRepository): BooleanConfigurable {
     )
 }
 
+fun trackDeletedFilesOnDisk(appRepository: AppRepository): BooleanConfigurable {
+    return BooleanConfigurable(
+        title = Res.string.settings_track_deleted_files_on_disk.asStringSource(),
+        description = Res.string.settings_track_deleted_files_on_disk_description.asStringSource(),
+        backedBy = appRepository.trackDeletedFilesOnDisk,
+        describe = {
+            if (it) {
+                Res.string.enabled.asStringSource()
+            } else {
+                Res.string.disabled.asStringSource()
+            }
+        },
+    )
+}
+
 fun showDownloadFinishWindow(settingsStorage: AppSettingsStorage): BooleanConfigurable {
     return BooleanConfigurable(
         title = Res.string.settings_show_completion_dialog.asStringSource(),
@@ -199,33 +214,36 @@ fun proxyConfig(proxyManager: ProxyManager, scope: CoroutineScope): ProxyConfigu
     )
 }
 
-/*
-fun uiScaleConfig(appSettings: AppSettings): EnumConfigurable<Float?> {
+fun uiScaleConfig(appSettings: AppSettingsStorage): EnumConfigurable<Float?> {
     return EnumConfigurable(
-        title = "Ui Scale",
-        description = "Scale Ui Elements",
+        title = Res.string.settings_ui_scale.asStringSource(),
+        description = Res.string.settings_ui_scale_description.asStringSource(),
         backedBy = appSettings.uiScale,
         possibleValues = listOf(
             null,
-            0.5f,
-            0.75f,
+            0.8f,
+            0.9f,
             1f,
+            1.1f,
             1.25f,
             1.5f,
             1.75f,
             2f,
+            2.25f,
+            2.5f,
+            2.75f,
+            3f,
         ),
         renderMode = EnumConfigurable.RenderMode.Spinner,
         describe = {
             if (it == null) {
-                "System"
+                Res.string.system.asStringSource()
             } else {
-                "$it x"
+                "$it x".asStringSource()
             }
         }
     )
 }
-*/
 
 fun themeConfig(
     themeManager: ThemeManager,
@@ -245,7 +263,7 @@ fun themeConfig(
         ),
         possibleValues = themes.value,
         describe = {
-            it.name.asStringSource()
+            it.name
         },
     )
 }
@@ -377,7 +395,7 @@ class SettingsComponent(
                 Appearance -> listOf(
                     themeConfig(themeManager, scope),
                     languageConfig(languageManager, scope),
-//                    uiScaleConfig(appSettings),
+                    uiScaleConfig(appSettings),
                     autoStartConfig(appSettings),
                     mergeTopBarWithTitleBarConfig(appSettings),
                     playSoundNotification(appSettings),
@@ -400,6 +418,7 @@ class SettingsComponent(
                     showDownloadFinishWindow(appSettings),
                     useServerLastModified(appRepository),
                     useSparseFileAllocation(appRepository),
+                    trackDeletedFilesOnDisk(appRepository),
                 )
             }
         }

@@ -14,6 +14,55 @@
 
 ### Security
 
+## 1.5.0
+
+### Added
+
+- In App Update feature.
+- An option to track deleted files on disk and remove them from the download list (either manually or automatically).
+- Delete option to the Main toolbar.
+
+### Changed
+
+- UI Scale maximum value increased to 3x.
+
+### Fixed
+
+- When you change "Default download Folder", the "Download Location" of categories also updated (if they are inside "
+  Default Download Location").
+- Issue on the "Add Multiple Download" page where the "Save Mode" set to "All in Same Location" was not functioning as
+  expected.
+- App does not start on boot when installation path contains space.
+
+### Improved
+
+- Redesigned "About" Page.
+- Translations updated.
+- "Extra Config" section on the "Add Download" page was not displaying correctly in some languages.
+
+## 1.4.4
+
+### Added
+
+- UI Scale option
+
+### Changed
+
+- The "Selection" cell in download list table can be hidden (optional)
+
+### Fixed
+
+- Improved "Open Folder" in Windows
+- Support third party file managers in Windows
+- "Download Progress" Window shows up even if the "Auto Show Progress Window" option is disabled
+- Improved "Confirm Delete Download" UX
+- Improved the readability of shortcut text in menus
+- Improved sort of download list by status
+- Resize handle moves in opposite direction for RTL languages
+- Improved "Home" page
+- Improved "About" page
+- Updated translations
+
 ## 1.4.3
 
 ### Added

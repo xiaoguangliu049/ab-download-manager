@@ -4,6 +4,7 @@ import com.abdownloadmanager.desktop.utils.*
 import androidx.datastore.core.DataStore
 import arrow.optics.Lens
 import arrow.optics.optics
+import com.abdownloadmanager.desktop.App
 import ir.amirab.util.compose.localizationmanager.LanguageStorage
 import ir.amirab.util.config.*
 import kotlinx.serialization.Serializable
@@ -15,6 +16,7 @@ import java.io.File
 data class AppSettingsModel(
     val theme: String = "dark",
     val language: String = "en",
+    val uiScale: Float? = null,
     val mergeTopBarWithTitleBar: Boolean = false,
     val threadCount: Int = 8,
     val dynamicPartCreation: Boolean = true,
@@ -31,6 +33,7 @@ data class AppSettingsModel(
         .canonicalFile.absolutePath,
     val browserIntegrationEnabled: Boolean = true,
     val browserIntegrationPort: Int = 15151,
+    val trackDeletedFilesOnDisk: Boolean = false,
 ) {
     companion object {
         val default: AppSettingsModel get() = AppSettingsModel()
@@ -40,6 +43,7 @@ data class AppSettingsModel(
         object Keys {
             val theme = stringKeyOf("theme")
             val language = stringKeyOf("language")
+            val uiScale = floatKeyOf("uiScale")
             val mergeTopBarWithTitleBar = booleanKeyOf("mergeTopBarWithTitleBar")
             val threadCount = intKeyOf("threadCount")
             val dynamicPartCreation = booleanKeyOf("dynamicPartCreation")
@@ -54,8 +58,8 @@ data class AppSettingsModel(
             val defaultDownloadFolder = stringKeyOf("defaultDownloadFolder")
             val browserIntegrationEnabled = booleanKeyOf("browserIntegrationEnabled")
             val browserIntegrationPort = intKeyOf("browserIntegrationPort")
+            val trackDeletedFilesOnDisk = booleanKeyOf("trackDeletedFilesOnDisk")
         }
-
 
 
         override fun get(source: MapConfig): AppSettingsModel {
@@ -63,6 +67,7 @@ data class AppSettingsModel(
             return AppSettingsModel(
                 theme = source.get(Keys.theme) ?: default.theme,
                 language = source.get(Keys.language) ?: default.language,
+                uiScale = source.get(Keys.uiScale) ?: default.uiScale,
                 mergeTopBarWithTitleBar = source.get(Keys.mergeTopBarWithTitleBar) ?: default.mergeTopBarWithTitleBar,
                 threadCount = source.get(Keys.threadCount) ?: default.threadCount,
                 dynamicPartCreation = source.get(Keys.dynamicPartCreation) ?: default.dynamicPartCreation,
@@ -81,6 +86,7 @@ data class AppSettingsModel(
                 browserIntegrationEnabled = source.get(Keys.browserIntegrationEnabled)
                     ?: default.browserIntegrationEnabled,
                 browserIntegrationPort = source.get(Keys.browserIntegrationPort) ?: default.browserIntegrationPort,
+                trackDeletedFilesOnDisk = source.get(Keys.trackDeletedFilesOnDisk) ?: default.trackDeletedFilesOnDisk,
             )
         }
 
@@ -88,6 +94,7 @@ data class AppSettingsModel(
             return source.apply {
                 put(Keys.theme, focus.theme)
                 put(Keys.language, focus.language)
+                putNullable(Keys.uiScale, focus.uiScale)
                 put(Keys.mergeTopBarWithTitleBar, focus.mergeTopBarWithTitleBar)
                 put(Keys.threadCount, focus.threadCount)
                 put(Keys.dynamicPartCreation, focus.dynamicPartCreation)
@@ -102,10 +109,21 @@ data class AppSettingsModel(
                 put(Keys.defaultDownloadFolder, focus.defaultDownloadFolder)
                 put(Keys.browserIntegrationEnabled, focus.browserIntegrationEnabled)
                 put(Keys.browserIntegrationPort, focus.browserIntegrationPort)
+                put(Keys.trackDeletedFilesOnDisk, focus.trackDeletedFilesOnDisk)
             }
         }
     }
 }
+
+private val uiScaleLens: Lens<AppSettingsModel, Float?>
+    get() = Lens(
+        get = {
+            it.uiScale
+        },
+        set = { s, f ->
+            s.copy(uiScale = f)
+        }
+    )
 
 class AppSettingsStorage(
     settings: DataStore<MapConfig>,
@@ -114,6 +132,7 @@ class AppSettingsStorage(
     LanguageStorage {
     var theme = from(AppSettingsModel.theme)
     override val selectedLanguage = from(AppSettingsModel.language)
+    var uiScale = from(uiScaleLens)
     var mergeTopBarWithTitleBar = from(AppSettingsModel.mergeTopBarWithTitleBar)
     val threadCount = from(AppSettingsModel.threadCount)
     val dynamicPartCreation = from(AppSettingsModel.dynamicPartCreation)
@@ -128,4 +147,5 @@ class AppSettingsStorage(
     val defaultDownloadFolder = from(AppSettingsModel.defaultDownloadFolder)
     val browserIntegrationEnabled = from(AppSettingsModel.browserIntegrationEnabled)
     val browserIntegrationPort = from(AppSettingsModel.browserIntegrationPort)
+    val trackDeletedFilesOnDisk = from(AppSettingsModel.trackDeletedFilesOnDisk)
 }
