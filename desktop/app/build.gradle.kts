@@ -21,9 +21,6 @@ dependencies {
     implementation(libs.decompose)
     implementation(libs.decompose.jbCompose)
 
-    //because we don't have material design, but we use ripple effect
-    implementation(libs.compose.material.rippleEffect)
-
     implementation(libs.koin.core)
 
     implementation(libs.kotlin.serialization.json)
@@ -52,10 +49,9 @@ dependencies {
     implementation(libs.osThemeDetector) {
         exclude(group = "net.java.dev.jna")
     }
-
-    // at the moment I don't use jna but some libraries does
-    // filekit and osThemeDetector both use jna but with different versions
-    // I excluded jna from both of them and add it here!
+    implementation(libs.proxyVole) {
+        exclude(group = "net.java.dev.jna")
+    }
     implementation(libs.jna.core)
     implementation(libs.jna.platform)
 
@@ -64,14 +60,21 @@ dependencies {
 
     implementation(project(":integration:server"))
     implementation(project(":desktop:shared"))
-    implementation(project(":desktop:tray"))
-    implementation(project(":desktop:custom-window-frame"))
+    implementation(project(":desktop:app-utils"))
+
+    implementation(project(":desktop:tray:common"))
+    if (Platform.getCurrentPlatform() == Platform.Desktop.Windows) {
+        implementation(project(":desktop:tray:windows"))
+    } else {
+        implementation(project(":desktop:tray:linux"))
+    }
+
+    implementation(project(":shared:app"))
     implementation(project(":shared:app-utils"))
     implementation(project(":shared:utils"))
     implementation(project(":shared:updater"))
     implementation(project(":shared:auto-start"))
     implementation(project(":shared:nanohttp4k"))
-    implementation(project(":shared:resources"))
 }
 
 aboutLibraries {

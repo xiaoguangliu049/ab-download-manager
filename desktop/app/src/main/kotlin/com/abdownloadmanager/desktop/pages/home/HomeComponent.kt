@@ -6,16 +6,16 @@ import com.abdownloadmanager.desktop.pages.home.sections.DownloadListCells
 import com.abdownloadmanager.desktop.pages.home.sections.category.DefinedStatusCategories
 import com.abdownloadmanager.desktop.pages.home.sections.category.DownloadStatusCategoryFilter
 import com.abdownloadmanager.desktop.storage.PageStatesStorage
-import com.abdownloadmanager.desktop.ui.icon.MyIcons
-import com.abdownloadmanager.desktop.ui.widget.NotificationType
-import com.abdownloadmanager.desktop.ui.widget.customtable.Sort
-import com.abdownloadmanager.desktop.ui.widget.customtable.TableState
+import com.abdownloadmanager.shared.utils.ui.icon.MyIcons
+import com.abdownloadmanager.shared.ui.widget.NotificationType
+import com.abdownloadmanager.shared.ui.widget.customtable.Sort
+import com.abdownloadmanager.shared.ui.widget.customtable.TableState
 import com.abdownloadmanager.desktop.utils.*
 import ir.amirab.util.compose.action.MenuItem
 import ir.amirab.util.compose.action.buildMenu
 import ir.amirab.util.compose.action.simpleAction
-import com.abdownloadmanager.desktop.utils.mvi.ContainsEffects
-import com.abdownloadmanager.desktop.utils.mvi.supportEffects
+import com.abdownloadmanager.shared.utils.mvi.ContainsEffects
+import com.abdownloadmanager.shared.utils.mvi.supportEffects
 import androidx.compose.runtime.*
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
@@ -23,14 +23,13 @@ import androidx.compose.ui.unit.dp
 import com.abdownloadmanager.UpdateManager
 import com.abdownloadmanager.desktop.pages.category.CategoryDialogManager
 import com.abdownloadmanager.desktop.storage.AppSettingsStorage
-import com.abdownloadmanager.desktop.ui.widget.MessageDialogType
 import com.abdownloadmanager.resources.Res
-import com.abdownloadmanager.utils.DownloadSystem
-import com.abdownloadmanager.utils.FileIconProvider
-import com.abdownloadmanager.utils.category.Category
-import com.abdownloadmanager.utils.category.CategoryItemWithId
-import com.abdownloadmanager.utils.category.CategoryManager
-import com.abdownloadmanager.utils.category.DefaultCategories
+import com.abdownloadmanager.shared.utils.*
+import com.abdownloadmanager.shared.utils.FileIconProvider
+import com.abdownloadmanager.shared.utils.category.Category
+import com.abdownloadmanager.shared.utils.category.CategoryItemWithId
+import com.abdownloadmanager.shared.utils.category.CategoryManager
+import com.abdownloadmanager.shared.utils.category.DefaultCategories
 import com.arkivanov.decompose.ComponentContext
 import ir.amirab.downloader.downloaditem.DownloadCredentials
 import ir.amirab.downloader.downloaditem.DownloadJobStatus
@@ -40,7 +39,7 @@ import ir.amirab.downloader.queue.QueueManager
 import ir.amirab.util.flow.combineStateFlows
 import ir.amirab.util.flow.mapStateFlow
 import ir.amirab.util.flow.mapTwoWayStateFlow
-import com.abdownloadmanager.utils.extractors.linkextractor.DownloadCredentialFromStringExtractor
+import com.abdownloadmanager.shared.utils.extractors.linkextractor.DownloadCredentialFromStringExtractor
 import ir.amirab.downloader.downloaditem.contexts.RemovedBy
 import ir.amirab.downloader.downloaditem.contexts.User
 import ir.amirab.util.AppVersionTracker
@@ -85,6 +84,7 @@ class DownloadActions(
     downloadSystem: DownloadSystem,
     downloadDialogManager: DownloadDialogManager,
     editDownloadDialogManager: EditDownloadDialogManager,
+    fileChecksumDialogManager: FileChecksumDialogManager,
     val selections: StateFlow<List<IDownloadItemState>>,
     private val mainItem: StateFlow<Long?>,
     private val queueManager: QueueManager,
@@ -219,8 +219,7 @@ class DownloadActions(
     val copyDownloadLinkAction = simpleAction(
         title = Res.string.copy_link.asStringSource(),
         icon = MyIcons.copy,
-        checkEnable =
-        selections.mapStateFlow { it.isNotEmpty() },
+        checkEnable = selections.mapStateFlow { it.isNotEmpty() },
         onActionPerformed = {
             scope.launch {
                 ClipboardUtil.copy(
@@ -237,6 +236,18 @@ class DownloadActions(
             .forEach { id ->
                 downloadDialogManager.openDownloadDialog(id)
             }
+    }
+    private val fileChecksumAction = simpleAction(
+        title = Res.string.file_checksum.asStringSource(), MyIcons.info,
+        checkEnable = selections.mapStateFlow { list ->
+            list.any { iiDownloadItemState ->
+                iiDownloadItemState.isFinished()
+            }
+        }
+    ) {
+        fileChecksumDialogManager.openFileChecksumPage(
+            selections.value.map { it.id }
+        )
     }
 
     private val moveToQueueItems = MenuItem.SubMenu(
@@ -292,6 +303,7 @@ class DownloadActions(
         separator()
         +(copyDownloadLinkAction)
         +editDownloadAction
+        +fileChecksumAction
         +(openDownloadDialogAction)
     }
 }
@@ -407,6 +419,7 @@ class HomeComponent(
     private val downloadDialogManager: DownloadDialogManager,
     private val editDownloadDialogManager: EditDownloadDialogManager,
     private val addDownloadDialogManager: AddDownloadDialogManager,
+    private val fileChecksumDialogManager: FileChecksumDialogManager,
     private val categoryDialogManager: CategoryDialogManager,
     private val notificationSender: NotificationSender,
 ) : BaseComponent(ctx),
@@ -427,6 +440,14 @@ class HomeComponent(
     val categoryManager: CategoryManager by inject()
     private val defaultCategories: DefaultCategories by inject()
     val fileIconProvider: FileIconProvider by inject()
+
+    init {
+        HomeComponent.homeComponentCreationCount++
+    }
+
+    private fun isFirstVisitInThisSession(): Boolean {
+        return HomeComponent.homeComponentCreationCount == 1
+    }
 
     init {
         homePageStateToPersist
@@ -821,31 +842,33 @@ class HomeComponent(
                 downloads.any { it.id == previouslySelectedItem }
             }
         }.launchIn(scope)
-        // if the app is updated then clean downloaded files
-        if (appVersionTracker.isUpgraded()) {
-            // clean update files
-            scope.launch {
-                // temporary fix:
-                // at the moment we relly on DownloadMonitor for getting the list of downloads by their folder
-                // so wait for the download list to be updated by the download monitor
-                delay(1000)
-                // then clean up the downloaded files
-                updateManager.cleanDownloadedFiles()
-            }
-            // show user about update
-            scope.launch {
-                // let user focus to the app
-                delay(1000)
-                notificationSender.sendNotification(
-                    title = Res.string.update_updater.asStringSource(),
-                    description = Res.string.update_app_updated_to_version_n.asStringSourceWithARgs(
-                        Res.string.update_app_updated_to_version_n_createArgs(
-                            version = appVersionTracker.currentVersion.toString()
-                        )
-                    ),
-                    type = NotificationType.Success,
-                    tag = "Updater"
-                )
+        if (isFirstVisitInThisSession()) {
+            // if the app is updated then clean downloaded files
+            if (appVersionTracker.isUpgraded()) {
+                // clean update files
+                scope.launch {
+                    // temporary fix:
+                    // at the moment we relly on DownloadMonitor for getting the list of downloads by their folder
+                    // so wait for the download list to be updated by the download monitor
+                    delay(1000)
+                    // then clean up the downloaded files
+                    updateManager.cleanDownloadedFiles()
+                }
+                // show user about update
+                scope.launch {
+                    // let user focus to the app
+                    delay(1000)
+                    notificationSender.sendNotification(
+                        title = Res.string.update_updater.asStringSource(),
+                        description = Res.string.update_app_updated_to_version_n.asStringSourceWithARgs(
+                            Res.string.update_app_updated_to_version_n_createArgs(
+                                version = appVersionTracker.currentVersion.toString()
+                            )
+                        ),
+                        type = NotificationType.Success,
+                        tag = "Updater"
+                    )
+                }
             }
         }
     }
@@ -909,6 +932,7 @@ class HomeComponent(
         downloadSystem = downloadSystem,
         downloadDialogManager = downloadDialogManager,
         editDownloadDialogManager = editDownloadDialogManager,
+        fileChecksumDialogManager = fileChecksumDialogManager,
         selections = selectionListItems,
         mainItem = mainItem,
         queueManager = queueManager,
@@ -956,7 +980,7 @@ class HomeComponent(
         categoryActions.value = null
     }
 
-    override val shortcutManager = ShortcutManager().apply {
+    override val shortcutManager = DesktopShortcutManager().apply {
         "ctrl N" to newDownloadAction
         "ctrl V" to newDownloadFromClipboardAction
         "ctrl C" to downloadActions.copyDownloadLinkAction
@@ -987,6 +1011,7 @@ class HomeComponent(
     }
 
     companion object {
+        private var homeComponentCreationCount = 0
         val CATEGORIES_SIZE_RANGE = 0.dp..500.dp
     }
 }

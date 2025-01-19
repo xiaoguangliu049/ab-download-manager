@@ -8,11 +8,15 @@ import com.abdownloadmanager.desktop.pages.settings.configurable.StringConfigura
 import com.abdownloadmanager.desktop.repository.AppRepository
 import com.abdownloadmanager.desktop.utils.*
 import androidx.compose.runtime.*
-import com.abdownloadmanager.desktop.utils.mvi.ContainsEffects
-import com.abdownloadmanager.desktop.utils.mvi.supportEffects
+import com.abdownloadmanager.desktop.pages.settings.ThreadCountLimitation
+import com.abdownloadmanager.desktop.pages.settings.configurable.FileChecksumConfigurable
+import com.abdownloadmanager.desktop.pages.settings.configurable.widgets.RenderFileChecksumConfig
+import com.abdownloadmanager.shared.utils.mvi.ContainsEffects
+import com.abdownloadmanager.shared.utils.mvi.supportEffects
 import com.abdownloadmanager.resources.Res
-import com.abdownloadmanager.utils.DownloadSystem
-import com.abdownloadmanager.utils.extractors.linkextractor.DownloadCredentialFromStringExtractor
+import com.abdownloadmanager.shared.utils.*
+import com.abdownloadmanager.shared.utils.FileIconProvider
+import com.abdownloadmanager.shared.utils.extractors.linkextractor.DownloadCredentialFromStringExtractor
 import com.arkivanov.decompose.ComponentContext
 import ir.amirab.downloader.connection.DownloaderClient
 import ir.amirab.downloader.downloaditem.DownloadCredentials
@@ -29,10 +33,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import com.abdownloadmanager.utils.FileIconProvider
-import com.abdownloadmanager.utils.category.Category
-import com.abdownloadmanager.utils.category.CategoryItem
-import com.abdownloadmanager.utils.category.CategoryManager
+import com.abdownloadmanager.shared.utils.category.Category
+import com.abdownloadmanager.shared.utils.category.CategoryItem
+import com.abdownloadmanager.shared.utils.category.CategoryManager
 import ir.amirab.util.compose.asStringSource
 import ir.amirab.util.compose.asStringSourceWithARgs
 
@@ -214,6 +217,7 @@ class AddSingleDownloadComponent(
     //extra settings
     private var threadCount = MutableStateFlow(null as Int?)
     private var speedLimit = MutableStateFlow(0L)
+    private var fileChecksum = MutableStateFlow(null as FileChecksum?)
 
 
     val downloadItem = combineStateFlows(
@@ -222,7 +226,8 @@ class AddSingleDownloadComponent(
         this.name,
         this.length,
         this.speedLimit,
-        this.threadCount
+        this.threadCount,
+        this.fileChecksum,
     ) {
             credentials,
             folder,
@@ -230,6 +235,7 @@ class AddSingleDownloadComponent(
             length,
             speedLimit,
             threadCount,
+            fileChecksum,
         ->
         DownloadItem(
             id = -1,
@@ -242,7 +248,8 @@ class AddSingleDownloadComponent(
             completeTime = null,
             status = DownloadStatus.Added,
             preferredConnectionCount = threadCount,
-            speedLimit = speedLimit
+            speedLimit = speedLimit,
+            fileChecksum = fileChecksum?.toString()
         ).withCredentials(credentials)
     }
 
@@ -257,8 +264,16 @@ class AddSingleDownloadComponent(
             backedBy = speedLimit,
             describe = {
                 if (it == 0L) Res.string.unlimited.asStringSource()
-                else convertSpeedToHumanReadable(it).asStringSource()
+                else convertPositiveSpeedToHumanReadable(
+                    it, appSettings.speedUnit.value
+                ).asStringSource()
             }
+        ),
+        FileChecksumConfigurable(
+            Res.string.download_item_settings_file_checksum.asStringSource(),
+            Res.string.download_item_settings_file_checksum_description.asStringSource(),
+            backedBy = fileChecksum,
+            describe = { "".asStringSource() }
         ),
         IntConfigurable(
             Res.string.settings_download_thread_count.asStringSource(),
@@ -271,7 +286,7 @@ class AddSingleDownloadComponent(
                     it.takeIf { it > 1 }
                 }
             ),
-            range = 0..32,
+            range = 0..ThreadCountLimitation.MAX_ALLOWED_THREAD_COUNT,
             describe = {
                 if (it == 0) Res.string.use_global_settings.asStringSource()
                 else Res.string.download_item_settings_thread_count_describe
