@@ -1,62 +1,66 @@
 package com.abdownloadmanager.desktop.pages.home
 
-import com.abdownloadmanager.desktop.pages.home.sections.DownloadList
-import com.abdownloadmanager.desktop.pages.home.sections.SearchBox
-import com.abdownloadmanager.desktop.pages.home.sections.category.*
-import com.abdownloadmanager.shared.utils.ui.WithContentAlpha
-import ir.amirab.util.compose.IconSource
-import com.abdownloadmanager.shared.utils.ui.widget.MyIcon
-import com.abdownloadmanager.shared.utils.ui.icon.MyIcons
-import com.abdownloadmanager.shared.utils.ui.myColors
-import com.abdownloadmanager.shared.utils.ui.theme.myTextSizes
-import com.abdownloadmanager.shared.ui.widget.menu.MenuBar
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.*
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
-import com.abdownloadmanager.shared.ui.widget.Text
-import androidx.compose.runtime.*
-import androidx.compose.ui.*
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.awtTransferable
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import com.abdownloadmanager.shared.ui.widget.*
-import com.abdownloadmanager.shared.ui.widget.menu.ShowOptionsInDropDown
+import com.abdownloadmanager.desktop.pages.home.sections.DownloadList
+import com.abdownloadmanager.desktop.pages.home.sections.SearchBox
+import com.abdownloadmanager.desktop.pages.home.sections.category.DefinedStatusCategories
+import com.abdownloadmanager.desktop.pages.home.sections.category.DownloadStatusCategoryFilter
+import com.abdownloadmanager.desktop.pages.home.sections.category.StatusFilterItem
 import com.abdownloadmanager.desktop.window.custom.TitlePosition
 import com.abdownloadmanager.desktop.window.custom.WindowEnd
 import com.abdownloadmanager.desktop.window.custom.WindowStart
 import com.abdownloadmanager.desktop.window.custom.WindowTitlePosition
 import com.abdownloadmanager.resources.Res
+import com.abdownloadmanager.shared.ui.widget.*
+import com.abdownloadmanager.shared.ui.widget.menu.MenuBar
+import com.abdownloadmanager.shared.ui.widget.menu.ShowOptionsInDropDown
 import com.abdownloadmanager.shared.utils.LocalSpeedUnit
 import com.abdownloadmanager.shared.utils.category.Category
 import com.abdownloadmanager.shared.utils.category.rememberIconPainter
 import com.abdownloadmanager.shared.utils.convertPositiveBytesToSizeUnit
 import com.abdownloadmanager.shared.utils.div
+import com.abdownloadmanager.shared.utils.ui.WithContentAlpha
 import com.abdownloadmanager.shared.utils.ui.WithTitleBarDirection
-import ir.amirab.util.compose.resources.myStringResource
+import com.abdownloadmanager.shared.utils.ui.icon.MyIcons
+import com.abdownloadmanager.shared.utils.ui.myColors
+import com.abdownloadmanager.shared.utils.ui.theme.myTextSizes
+import com.abdownloadmanager.shared.utils.ui.widget.MyIcon
+import ir.amirab.util.compose.IconSource
 import ir.amirab.util.compose.StringSource
 import ir.amirab.util.compose.action.MenuItem
 import ir.amirab.util.compose.asStringSource
 import ir.amirab.util.compose.asStringSourceWithARgs
 import ir.amirab.util.compose.localizationmanager.WithLanguageDirection
+import ir.amirab.util.compose.resources.myStringResource
+import ir.amirab.util.platform.Platform
+import ir.amirab.util.platform.isMac
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import java.awt.datatransfer.DataFlavor
 import java.io.File
 
@@ -186,18 +190,23 @@ fun HomePage(component: HomeComponent) {
                 },
                 target = remember {
                     object : DragAndDropTarget {
-                        override fun onStarted(event: DragAndDropEvent) {
-                            isDragging = true
+                        private fun onDraggedIn(event: DragAndDropEvent) {
                             if (event.awtTransferable.isDataFlavorSupported(DataFlavor.stringFlavor)) {
                                 component.onExternalTextDraggedIn { (event.awtTransferable.getTransferData(DataFlavor.stringFlavor) as String) }
                                 return
                             }
+
                             if (event.awtTransferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)) {
                                 component.onExternalFilesDraggedIn {
-                                    (event.awtTransferable.getTransferData(DataFlavor.javaFileListFlavor) as List<File>)
+                                    (event.awtTransferable.getTransferData(DataFlavor.javaFileListFlavor) as List<*>).filterIsInstance<File>()
                                 }
                                 return
                             }
+                        }
+
+                        override fun onStarted(event: DragAndDropEvent) {
+                            isDragging = true
+                            onDraggedIn(event)
                         }
 
                         override fun onEnded(event: DragAndDropEvent) {
@@ -207,6 +216,9 @@ fun HomePage(component: HomeComponent) {
 
                         override fun onDrop(event: DragAndDropEvent): Boolean {
                             isDragging = false
+                            if (Platform.isMac()) {
+                                onDraggedIn(event)
+                            }
                             component.onDropped()
                             return true
                         }
@@ -254,7 +266,7 @@ fun HomePage(component: HomeComponent) {
                         AddUrlButton {
                             component.requestAddNewDownload()
                         }
-                        Actions(component.headerActions)
+                        Actions(component.headerActions, component.showLabels.collectAsState().value)
                     }
                     var lastSelected by remember { mutableStateOf(null as Long?) }
                     DownloadList(
@@ -617,7 +629,7 @@ fun DragWidget(
             text = myStringResource(Res.string.drop_link_or_file_here),
             fontSize = myTextSizes.xl
         )
-        if (linkCount != null) {
+        if (linkCount != null && Platform.isMac().not()) {
             when {
                 linkCount > 0 -> {
                     Text(
@@ -636,12 +648,8 @@ fun DragWidget(
                     Text(myStringResource(Res.string.nothing_will_be_imported))
                 }
             }
-
         }
-
     }
-
-
 }
 
 
