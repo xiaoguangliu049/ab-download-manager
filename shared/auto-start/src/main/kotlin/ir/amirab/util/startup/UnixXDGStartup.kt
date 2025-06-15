@@ -1,8 +1,6 @@
 package ir.amirab.util.startup
 
 import java.io.File
-import java.io.FileWriter
-import java.io.PrintWriter
 
 class UnixXDGStartup(
     name: String,
@@ -14,6 +12,17 @@ class UnixXDGStartup(
     args = args,
 ) {
 
+    private fun getIconFilePath(): String? {
+        return runCatching {
+            val file = File(path)
+            val name = file.name
+            return file
+                .parentFile.parentFile
+                .resolve("lib/$name.png")
+                .takeIf { it.exists() }?.path
+        }.getOrNull()
+    }
+
     private fun getAutoStartFile(): File {
         if (!autostartDir.exists()) {
             autostartDir.mkdirs()
@@ -23,14 +32,22 @@ class UnixXDGStartup(
 
     @Throws(Exception::class)
     override fun install() {
-        val out = PrintWriter(FileWriter(getAutoStartFile()))
-        out.println("[Desktop Entry]")
-        out.println("Type=Application")
-        out.println("Name=" + this.name)
-        out.println("Exec=" + getExecutableWithArgs())
-        out.println("Terminal=false")
-        out.println("NoDisplay=true")
-        out.close()
+        val name = this.name
+        val exec = getExecutableWithArgs()
+        val icon = getIconFilePath()
+        getAutoStartFile().writeText(
+            buildString {
+                appendLine("[Desktop Entry]")
+                appendLine("Type=Application")
+                appendLine("Name=$name")
+                appendLine("Exec=$exec")
+                icon?.let { icon ->
+                    appendLine("Icon=$icon")
+                }
+                appendLine("Terminal=false")
+                appendLine("NoDisplay=true")
+            }
+        )
     }
 
     override fun uninstall() {

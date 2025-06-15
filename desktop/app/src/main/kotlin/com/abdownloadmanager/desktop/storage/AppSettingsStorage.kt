@@ -17,11 +17,14 @@ data class AppSettingsModel(
     val language: String? = null,
     val uiScale: Float? = null,
     val mergeTopBarWithTitleBar: Boolean = false,
+    val useNativeMenuBar: Boolean = false,
     val showIconLabels: Boolean = true,
     val useSystemTray: Boolean = true,
     val threadCount: Int = 8,
+    val maxDownloadRetryCount: Int = 0,
     val dynamicPartCreation: Boolean = true,
     val useServerLastModifiedTime: Boolean = false,
+    val appendExtensionToIncompleteDownloads: Boolean = false,
     val useSparseFileAllocation: Boolean = true,
     val useAverageSpeed: Boolean = true,
     val showDownloadProgressDialog: Boolean = true,
@@ -50,11 +53,14 @@ data class AppSettingsModel(
             val language = stringKeyOf("language")
             val uiScale = floatKeyOf("uiScale")
             val mergeTopBarWithTitleBar = booleanKeyOf("mergeTopBarWithTitleBar")
+            val useNativeMenuBar = booleanKeyOf("useNativeMenuBar")
             val showIconLabels = booleanKeyOf("showIconLabels")
             val useSystemTray = booleanKeyOf("useSystemTray")
             val threadCount = intKeyOf("threadCount")
+            val maxDownloadRetryCount = intKeyOf("maxDownloadRetryCount")
             val dynamicPartCreation = booleanKeyOf("dynamicPartCreation")
             val useServerLastModifiedTime = booleanKeyOf("useServerLastModifiedTime")
+            val appendExtensionToIncompleteDownloads = booleanKeyOf("appendExtensionToIncompleteDownloads")
             val useSparseFileAllocation = booleanKeyOf("useSparseFileAllocation")
             val useAverageSpeed = booleanKeyOf("useAverageSpeed")
             val showDownloadProgressDialog = booleanKeyOf("showDownloadProgressDialog")
@@ -80,12 +86,16 @@ data class AppSettingsModel(
                 language = source.get(Keys.language) ?: default.language,
                 uiScale = source.get(Keys.uiScale) ?: default.uiScale,
                 mergeTopBarWithTitleBar = source.get(Keys.mergeTopBarWithTitleBar) ?: default.mergeTopBarWithTitleBar,
+                useNativeMenuBar = source.get(Keys.useNativeMenuBar) ?: default.useNativeMenuBar,
                 showIconLabels = source.get(Keys.showIconLabels) ?: default.showIconLabels,
                 useSystemTray = source.get(Keys.useSystemTray) ?: default.useSystemTray,
                 threadCount = source.get(Keys.threadCount) ?: default.threadCount,
+                maxDownloadRetryCount = source.get(Keys.maxDownloadRetryCount) ?: default.maxDownloadRetryCount,
                 dynamicPartCreation = source.get(Keys.dynamicPartCreation) ?: default.dynamicPartCreation,
                 useServerLastModifiedTime = source.get(Keys.useServerLastModifiedTime)
                     ?: default.useServerLastModifiedTime,
+                appendExtensionToIncompleteDownloads = source.get(Keys.appendExtensionToIncompleteDownloads)
+                    ?: default.appendExtensionToIncompleteDownloads,
                 useSparseFileAllocation = source.get(Keys.useSparseFileAllocation) ?: default.useSparseFileAllocation,
                 useAverageSpeed = source.get(Keys.useAverageSpeed) ?: default.useAverageSpeed,
                 showDownloadProgressDialog = source.get(Keys.showDownloadProgressDialog)
@@ -113,11 +123,14 @@ data class AppSettingsModel(
                 putNullable(Keys.language, focus.language)
                 putNullable(Keys.uiScale, focus.uiScale)
                 put(Keys.mergeTopBarWithTitleBar, focus.mergeTopBarWithTitleBar)
+                put(Keys.useNativeMenuBar, focus.useNativeMenuBar)
                 put(Keys.showIconLabels, focus.showIconLabels)
                 put(Keys.useSystemTray, focus.useSystemTray)
                 put(Keys.threadCount, focus.threadCount)
+                put(Keys.maxDownloadRetryCount, focus.maxDownloadRetryCount)
                 put(Keys.dynamicPartCreation, focus.dynamicPartCreation)
                 put(Keys.useServerLastModifiedTime, focus.useServerLastModifiedTime)
+                put(Keys.appendExtensionToIncompleteDownloads, focus.appendExtensionToIncompleteDownloads)
                 put(Keys.useSparseFileAllocation, focus.useSparseFileAllocation)
                 put(Keys.useAverageSpeed, focus.useAverageSpeed)
                 put(Keys.showDownloadProgressDialog, focus.showDownloadProgressDialog)
@@ -166,13 +179,16 @@ class AppSettingsStorage(
     override val selectedLanguage = from(languageLens)
     val uiScale = from(uiScaleLens)
     val mergeTopBarWithTitleBar = from(AppSettingsModel.mergeTopBarWithTitleBar)
+    val useNativeMenuBar = from(AppSettingsModel.useNativeMenuBar)
     val showIconLabels = from(AppSettingsModel.showIconLabels)
     val useSystemTray = from(AppSettingsModel.useSystemTray)
     val threadCount = from(AppSettingsModel.threadCount)
     val dynamicPartCreation = from(AppSettingsModel.dynamicPartCreation)
     val useServerLastModifiedTime = from(AppSettingsModel.useServerLastModifiedTime)
+    val appendExtensionToIncompleteDownloads = from(AppSettingsModel.appendExtensionToIncompleteDownloads)
     val useSparseFileAllocation = from(AppSettingsModel.useSparseFileAllocation)
     val useAverageSpeed = from(AppSettingsModel.useAverageSpeed)
+    val maxDownloadRetryCount = from(AppSettingsModel.maxDownloadRetryCount)
     val showDownloadProgressDialog = from(AppSettingsModel.showDownloadProgressDialog)
     val showDownloadCompletionDialog = from(AppSettingsModel.showDownloadCompletionDialog)
     val speedLimit = from(AppSettingsModel.speedLimit)

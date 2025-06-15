@@ -14,6 +14,181 @@
 
 ### Security
 
+## 1.6.4
+
+### Added
+
+- Queues are now visible on the home page, next to the categories (#661)
+- In-app update is now supported on macOS (#627)
+- New option to enable the native menu bar on macOS (#646)
+
+### Fixed
+
+- macOS: Window now activates properly when "Show Downloads" is clicked from the system tray (#632)
+- Linux: Startup desktop entry now includes an icon (#634)
+- An issue where the "Edit Download" page could unintentionally change the download status (#641)
+- Queue status not updated properly sometimes (#663)
+
+### Improved
+
+- Translations updated
+- Minor UI improvements
+
+## 1.6.3
+
+### Added
+
+- Korean Language
+- An option to append ".part" extension to incomplete downloads (disabled by default)
+
+### Fixed
+
+- Prevent freeze when opening a file or folder
+- Some websites close the connection if we ask for resume support
+- Some non-standard links not captured correctly
+- Crash when opening browser integration links on macOS
+- Multiselect with Meta key not working as expected on macOS
+- Multiselect not stopped properly after window focus lost
+
+### Improved
+
+- Translations updated
+- Minor UI/UX improvements
+
+## 1.6.2
+
+### Added
+
+- Thai Language
+
+### Fixed
+
+- System Tray crashes sometimes in Linux
+- Icons not rendered properly sometimes in Linux
+- System Tray icon color in macOS
+- Quit handler in macOS
+
+### Improved
+
+- Translations updated
+- Respect user defined position of system buttons in Linux
+
+## 1.6.1
+
+### Fixed
+
+- Application shortcut in Windows have no icon
+
+### Improved
+
+- Translations updated
+
+## 1.6.0
+
+### Added
+
+- macOS support
+- Polish Language
+- Hungarian Language
+- Luri Bakhtiari Language
+- Silent Download option in the Browser Integration
+- Donate button in the app to support the project
+
+### Fixed
+
+- Overriding an existing download sometimes didn't work as expected.
+- "Start Queue" checkbox sometimes did not work as expected.
+
+### Improved
+
+- Translations updated
+- Custom Window decorations
+- Window dragging on Linux is now handled by the OS
+- Each platform now uses its own system button style
+- JVM updated to version 21
+
+## 1.5.8
+
+### Added
+
+- An option to allow update existing download from "Add Download" page if a duplicate is detected
+
+### Fixed
+
+- Crash when opening "Items" section of "Queues" page
+
+### Improved
+
+- Translations updated
+- Duplicate download detection
+- Minor UI/UX improvements
+
+## 1.5.7
+
+### Added
+
+- Drag and Drop files to other categories or external applications
+
+### Fixed
+
+- "Parts Info" section in the "Download Progress" window does not expand for the first time
+
+### Improved
+
+- Translations Updated
+- Improved UI rendering on Windows, resulting in higher FPS.
+- Minor UI/UX Improvements
+
+## 1.5.6
+
+### Added
+
+- Finnish Language Support
+- An option to make the start time of queues optional
+- An ability to edit saved checksums on the "File Checksum Checker" page'
+
+### Changed
+
+- The "Close" button in the "Download Progress" window has been renamed to "Cancel" (this stops the download and closes
+  the window). To close the window without stopping the download, use the "X" button.
+
+### Fixed
+
+- An issue where filenames in email attachments were not captured correctly
+- The updater wouldn't resume after the download was stopped
+- "Open Folder" doesn’t work properly on Linux when the file name contains special characters.
+- Changing settings in the 'Download Progress' window also affects other download items!
+
+### Improved
+
+- Translations updated
+- "Download Progress" and "Queues" windows UI improvements
+- Pressing "Download Browser Integration" the download page will be opened in the corresponding browser
+
+## 1.5.5
+
+### Added
+
+- Japanese Language
+- An option to automatically "Retry Failed Downloads" (Disabled by default for now)
+- An option to Import/Export download credentials as curl command
+
+### Fixed
+
+- The download progress sometimes shows incorrect speeds and ETAs
+- Some unverified hostnames can't be used when the "Ignore SSL Certificate" is enabled
+- Startup on Boot issue in macOS
+- Drag And Drop of links issue in macOS
+- Some shortcuts didn't work properly in macOS
+- System Tray didn't work in macOS
+
+### Improved
+
+- Translations updated
+- Minor UI improvements
+- App Icon size in macOS
+- Override "About" dialog in macOS
+
 ## 1.5.4
 
 ### Added

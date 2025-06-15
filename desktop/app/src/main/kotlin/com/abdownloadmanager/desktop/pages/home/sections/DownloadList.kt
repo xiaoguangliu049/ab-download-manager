@@ -7,11 +7,12 @@ import com.abdownloadmanager.shared.ui.widget.CheckBox
 import com.abdownloadmanager.shared.ui.widget.Text
 import com.abdownloadmanager.shared.ui.widget.customtable.Table
 import com.abdownloadmanager.shared.ui.widget.customtable.styled.MyStyledTableHeader
-import com.abdownloadmanager.shared.ui.widget.menu.LocalMenuDisabledItemBehavior
-import com.abdownloadmanager.shared.ui.widget.menu.MenuDisabledItemBehavior
-import com.abdownloadmanager.shared.ui.widget.menu.ShowOptionsInDropDown
+import com.abdownloadmanager.shared.ui.widget.menu.custom.LocalMenuDisabledItemBehavior
+import com.abdownloadmanager.shared.ui.widget.menu.custom.MenuDisabledItemBehavior
+import com.abdownloadmanager.shared.ui.widget.menu.custom.ShowOptionsInDropDown
 import ir.amirab.util.compose.action.MenuItem
 import androidx.compose.foundation.*
+import androidx.compose.foundation.draganddrop.dragAndDropSource
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -19,11 +20,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draganddrop.DragAndDropTransferAction
+import androidx.compose.ui.draganddrop.DragAndDropTransferData
+import androidx.compose.ui.draganddrop.DragAndDropTransferable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.input.pointer.*
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.dp
+import com.abdownloadmanager.desktop.pages.home.DownloadItemTransferable
 import com.abdownloadmanager.shared.ui.widget.customtable.*
 import com.abdownloadmanager.resources.Res
 import com.abdownloadmanager.shared.utils.FileIconProvider
@@ -33,6 +39,8 @@ import ir.amirab.downloader.monitor.*
 import ir.amirab.util.compose.resources.myStringResource
 import ir.amirab.util.compose.StringSource
 import ir.amirab.util.compose.asStringSource
+import ir.amirab.util.desktop.isCtrlPressed
+import ir.amirab.util.ifThen
 import kotlinx.coroutines.delay
 
 
@@ -83,8 +91,12 @@ fun DownloadList(
                 it in selectionList
             }
         }
-
     }
+
+    val listToBeDragged by rememberUpdatedState(
+        downloadList.filter { it.id in selectionList }
+    )
+
     val tableInteractionSource = remember { MutableInteractionSource() }
 
     fun newSelection(ids: List<Long>, isSelected: Boolean) {
@@ -95,8 +107,7 @@ fun DownloadList(
         newSelection(downloadList.map { it.id }, isSelected)
     }
 
-    var isCtrlPressed by remember { mutableStateOf(false) }
-    var isShiftPressed by remember { mutableStateOf(false) }
+    val windowInfo = LocalWindowInfo.current
     CompositionLocalProvider(
         LocalDownloadListContext provides DownloadListContext(
             onNewSelection,
@@ -112,14 +123,7 @@ fun DownloadList(
             list = downloadList,
             modifier = modifier
                 .onKeyEvent {
-                    val ctrlPressed = it.isCtrlPressed
-                    val shiftPressed = it.isShiftPressed
-                    isCtrlPressed = ctrlPressed
-                    isShiftPressed = shiftPressed
-                    false
-                }
-                .onKeyEvent {
-                    if (isCtrlPressed && it.key == Key.A) {
+                    if (it.key == Key.A && isCtrlPressed(windowInfo)) {
                         changeAllSelection(true)
                         true
                     } else {
@@ -173,6 +177,25 @@ fun DownloadList(
                         Box(
                             Modifier
                                 .widthIn(min = getTableSize().visibleWidth)
+                                .ifThen(isSelected) {
+                                    dragAndDropSource(
+                                        drawDragDecoration = {},
+                                        transferData = {
+                                            val selectedDownloads = listToBeDragged
+                                            if (selectedDownloads.isEmpty() || !isSelected) {
+                                                return@dragAndDropSource null
+                                            }
+                                            DragAndDropTransferData(
+                                                transferable = DragAndDropTransferable(
+                                                    DownloadItemTransferable(selectedDownloads)
+                                                ),
+                                                supportedActions = listOf(
+                                                    DragAndDropTransferAction.Copy,
+                                                ),
+                                            )
+                                        }
+                                    )
+                                }
                                 .onClick(
                                     interactionSource = itemInteractionSource
                                 ) {
@@ -180,7 +203,7 @@ fun DownloadList(
                                         onRequestOpenDownload(item.id)
                                         shouldWaitForSecondClick = false
                                     } else {
-                                        if (isCtrlPressed) {
+                                        if (isCtrlPressed(windowInfo)) {
                                             onItemSelectionChange(item.id, !isSelected)
                                         } else {
                                             changeAllSelection(false)
@@ -382,6 +405,4 @@ fun ShowDownloadOptions(
             ShowOptionsInDropDown(options, onDismiss)
         }
     }
-
 }
-

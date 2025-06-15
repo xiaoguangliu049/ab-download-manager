@@ -2,6 +2,7 @@ package com.abdownloadmanager.desktop
 
 import com.abdownloadmanager.desktop.pages.addDownload.AddDownloadComponent
 import com.abdownloadmanager.desktop.pages.addDownload.AddDownloadConfig
+import com.abdownloadmanager.desktop.pages.addDownload.ImportOptions
 import com.abdownloadmanager.desktop.pages.addDownload.multiple.AddMultiDownloadComponent
 import com.abdownloadmanager.desktop.pages.addDownload.single.AddSingleDownloadComponent
 import com.abdownloadmanager.desktop.pages.batchdownload.BatchDownloadComponent
@@ -49,6 +50,9 @@ import com.abdownloadmanager.shared.utils.category.CategoryManager
 import com.abdownloadmanager.shared.utils.category.CategorySelectionMode
 import com.abdownloadmanager.shared.utils.subscribeAsStateFlow
 import com.arkivanov.decompose.childContext
+import ir.amirab.downloader.destination.IncompleteFileUtil
+import ir.amirab.downloader.downloaditem.DownloadStatus
+import ir.amirab.downloader.downloaditem.withCredentials
 import ir.amirab.downloader.exception.TooManyErrorException
 import ir.amirab.downloader.monitor.isDownloadActiveFlow
 import ir.amirab.util.compose.StringSource
@@ -56,8 +60,12 @@ import ir.amirab.util.compose.asStringSource
 import ir.amirab.util.compose.combineStringSources
 import ir.amirab.util.flow.mapStateFlow
 import ir.amirab.util.osfileutil.FileUtils
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -83,6 +91,7 @@ class AppComponent(
     CategoryDialogManager,
     EditDownloadDialogManager,
     FileChecksumDialogManager,
+    QueuePageManager,
     NotificationSender,
     DownloadItemOpener,
     ContainsEffects<AppEffects> by supportEffects(),
@@ -138,19 +147,26 @@ class AppComponent(
                 categoryDialogManager = this,
                 notificationSender = this,
                 editDownloadDialogManager = this,
+                queuePageManager = this,
             )
         }
     ).subscribeAsStateFlow()
 
-    class QueuePageConfig
+    class QueuePageConfig(
+        val selectedQueue: Long? = null
+    )
 
     private val showQueues = SlotNavigation<QueuePageConfig>()
     val showQueuesSlot = childSlot(
         showQueues,
         serializer = null,
         key = "queues",
-        childFactory = { _: QueuePageConfig, componentContext: ComponentContext ->
-            QueuesComponent(componentContext, this::closeQueues)
+        childFactory = { config: QueuePageConfig, componentContext: ComponentContext ->
+            QueuesComponent(componentContext, this::closeQueues).apply {
+                config.selectedQueue?.let {
+                    onQueueSelected(it)
+                }
+            }
         }
     ).subscribeAsStateFlow()
 
@@ -187,9 +203,9 @@ class AppComponent(
                 onRequestClose = {
                     closeEditDownloadDialog()
                 },
-                onEdited = {
+                onEdited = { updater ->
                     scope.launch {
-                        downloadSystem.editDownload(it)
+                        downloadSystem.editDownload(editDownloadConfig, updater)
                         closeEditDownloadDialog()
                     }
                 },
@@ -289,7 +305,17 @@ class AppComponent(
                             closeAddDownloadDialog(config.id)
                         },
                         downloadItemOpener = this,
-                        id = config.id
+                        updateExistingDownloadCredentials = { id, newCredentials ->
+                            scope.launch {
+                                downloadSystem.downloadManager.updateDownloadItem(id) {
+                                    it.withCredentials(newCredentials)
+                                }
+                                closeAddDownloadDialog(config.id)
+                                openDownloadDialog(id)
+                            }
+                        },
+                        id = config.id,
+                        importOptions = config.importOptions
                     ).also {
                         it.setCredentials(config.credentials)
                     }
@@ -301,7 +327,7 @@ class AppComponent(
                         id = config.id,
                         onRequestClose = { closeAddDownloadDialog(config.id) },
                         onRequestAdd = { items, strategy, queueId, categorySelectionMode ->
-                            addDownload(
+                            addDownloads(
                                 items = items,
                                 onDuplicateStrategy = strategy,
                                 queueId = queueId,
@@ -310,7 +336,7 @@ class AppComponent(
                         },
                         onRequestAddCategory = {
                             openCategoryDialog(-1)
-                        }
+                        },
                     ).apply { addItems(config.links) }
                 }
 
@@ -572,9 +598,11 @@ class AppComponent(
         openDownloadItem(item)
     }
 
-    override fun openDownloadItem(downloadItem: DownloadItem) {
+    override suspend fun openDownloadItem(downloadItem: DownloadItem) {
         runCatching {
-            FileUtils.openFile(downloadSystem.getDownloadFile(downloadItem))
+            withContext(Dispatchers.IO) {
+                FileUtils.openFile(downloadSystem.getDownloadFile(downloadItem))
+            }
         }.onFailure {
             sendNotification(
                 Res.string.open_file,
@@ -600,9 +628,21 @@ class AppComponent(
         openDownloadItemFolder(item)
     }
 
-    override fun openDownloadItemFolder(downloadItem: DownloadItem) {
+    override suspend fun openDownloadItemFolder(downloadItem: DownloadItem) {
         runCatching {
-            FileUtils.openFolderOfFile(downloadSystem.getDownloadFile(downloadItem))
+            withContext(Dispatchers.IO) {
+                val file = downloadSystem.getDownloadFile(downloadItem)
+                if (file.exists()) {
+                    FileUtils.openFolderOfFile(file)
+                } else {
+                    val incompleteFile = IncompleteFileUtil.addIncompleteIndicator(file, downloadItem.id)
+                    if (incompleteFile.exists() && downloadItem.status != DownloadStatus.Completed) {
+                        FileUtils.openFolderOfFile(incompleteFile)
+                    } else {
+                        FileUtils.openFolder(file.parentFile)
+                    }
+                }
+            }
         }.onFailure {
             sendNotification(
                 Res.string.open_folder,
@@ -614,7 +654,10 @@ class AppComponent(
         }
     }
 
-    fun externalCredentialComingIntoApp(list: List<DownloadCredentials>) {
+    fun externalCredentialComingIntoApp(
+        list: List<DownloadCredentials>,
+        options: ImportOptions
+    ) {
         val editDownloadComponent = editDownloadSlot.value.child?.instance
         if (editDownloadComponent != null) {
             list.firstOrNull()?.let {
@@ -622,12 +665,13 @@ class AppComponent(
                 editDownloadComponent.bringToFront()
             }
         } else {
-            openAddDownloadDialog(list)
+            openAddDownloadDialog(list, options)
         }
     }
 
     override fun openAddDownloadDialog(
         links: List<DownloadCredentials>,
+        importOptions: ImportOptions,
     ) {
         scope.launch {
             //remove duplicates
@@ -635,10 +679,14 @@ class AppComponent(
             addDownloadPageControl.navigate {
                 val newItems = it.items +
                         if (links.size > 1) {
-                            AddDownloadConfig.MultipleAddConfig(links)
+                            AddDownloadConfig.MultipleAddConfig(
+                                links,
+                                importOptions,
+                            )
                         } else {
                             AddDownloadConfig.SingleAddConfig(
-                                links.firstOrNull() ?: DownloadCredentials.empty()
+                                links.firstOrNull() ?: DownloadCredentials.empty(),
+                                importOptions,
                             )
                         }
                 val copy = it.copy(
@@ -729,13 +777,13 @@ class AppComponent(
         }
     }
 
-    fun addDownload(
+    fun addDownloads(
         items: List<DownloadItem>,
         onDuplicateStrategy: (DownloadItem) -> OnDuplicateStrategy,
         categorySelectionMode: CategorySelectionMode?,
         queueId: Long?,
-    ) {
-        scope.launch {
+    ): Deferred<List<Long>> {
+        return scope.async {
             downloadSystem.addDownload(
                 newItemsToAdd = items,
                 onDuplicateStrategy = onDuplicateStrategy,
@@ -750,8 +798,8 @@ class AppComponent(
         queueId: Long?,
         categoryId: Long?,
         onDuplicateStrategy: OnDuplicateStrategy,
-    ) {
-        scope.launch {
+    ): Deferred<Long> {
+        return scope.async {
             downloadSystem.addDownload(
                 downloadItem = item,
                 onDuplicateStrategy = onDuplicateStrategy,
@@ -765,16 +813,15 @@ class AppComponent(
         item: DownloadItem,
         onDuplicateStrategy: OnDuplicateStrategy,
         categoryId: Long?,
-    ) {
-        scope.launch {
-            val id = downloadSystem.addDownload(
+    ): Deferred<Long> {
+        return scope.async {
+            downloadSystem.addDownload(
                 downloadItem = item,
                 onDuplicateStrategy = onDuplicateStrategy,
                 queueId = DefaultQueueInfo.ID,
                 categoryId = categoryId,
-            )
-            launch {
-                downloadSystem.manualResume(id)
+            ).also {
+                downloadSystem.manualResume(it)
             }
         }
     }
@@ -828,20 +875,46 @@ class AppComponent(
         showTranslators.update { false }
     }
 
-    fun openQueues() {
+    override fun openQueues(
+        openQueueId: Long?,
+    ) {
         scope.launch {
             showQueuesSlot.value.child?.instance.let {
                 if (it != null) {
                     it.bringToFront()
+                    if (openQueueId != null) {
+                        it.onQueueSelected(openQueueId)
+                    }
                 } else {
-                    showQueues.activate(QueuePageConfig())
+                    showQueues.activate(
+                        QueuePageConfig(
+                            selectedQueue = openQueueId
+                        )
+                    )
                 }
             }
         }
     }
 
-    fun closeQueues() {
+    override fun closeQueues() {
         showQueues.dismiss()
+    }
+
+    var showCreateQueueDialog = MutableStateFlow(false)
+        private set
+
+    override fun closeNewQueueDialog() {
+        showCreateQueueDialog.update { false }
+    }
+
+    override fun openNewQueueDialog() {
+        showCreateQueueDialog.update { true }
+    }
+
+    fun createNewQueue(name: String) {
+        scope.launch {
+            downloadSystem.addQueue(name)
+        }
     }
 
     fun openBatchDownload() {
@@ -859,23 +932,6 @@ class AppComponent(
 
     fun closeBatchDownload() {
         batchDownload.dismiss()
-    }
-
-    var showCreateQueueDialog = MutableStateFlow(false)
-        private set
-
-    fun closeNewQueueDialog() {
-        showCreateQueueDialog.update { false }
-    }
-
-    fun openNewQueueDialog() {
-        showCreateQueueDialog.update { true }
-    }
-
-    fun createNewQueue(name: String) {
-        scope.launch {
-            downloadSystem.addQueue(name)
-        }
     }
 
     val dialogMessages: MutableStateFlow<List<MessageDialogModel>> = MutableStateFlow(emptyList())
@@ -927,6 +983,7 @@ interface AddDownloadDialogManager {
     val openedAddDownloadDialogs: StateFlow<List<AddDownloadComponent>>
     fun openAddDownloadDialog(
         links: List<DownloadCredentials>,
+        importOptions: ImportOptions = ImportOptions(),
     )
 
     fun closeAddDownloadDialog(dialogId: String)
@@ -936,4 +993,14 @@ interface FileChecksumDialogManager {
     fun openFileChecksumPage(ids: List<Long>)
 
     fun closeFileChecksumPage(dialogId: String)
+}
+
+interface QueuePageManager {
+    fun openQueues(
+        openQueueId: Long? = null
+    )
+    fun closeQueues()
+    
+    fun openNewQueueDialog()
+    fun closeNewQueueDialog()
 }

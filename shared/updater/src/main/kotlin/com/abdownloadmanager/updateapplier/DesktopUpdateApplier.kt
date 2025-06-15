@@ -3,6 +3,7 @@ package com.abdownloadmanager.updateapplier;
 import com.abdownloadmanager.updatechecker.UpdateInfo
 import com.abdownloadmanager.updatechecker.UpdateSource
 import ir.amirab.util.platform.Platform
+import ir.amirab.util.platform.isMac
 import java.io.File
 
 class DesktopUpdateApplier(
@@ -31,7 +32,7 @@ class DesktopUpdateApplier(
     }
 
     private fun isExeFile(name: String): Boolean {
-        return name.endsWith(".exe") || name.endsWith(".zip")
+        return name.endsWith(".exe")
     }
 
     override suspend fun applyUpdate(
@@ -50,7 +51,8 @@ class DesktopUpdateApplier(
             return
         }
         downloading = true
-        val downloadableSources = updateInfo.updateSource.filterIsInstance<UpdateSource.DirectDownloadLink>()
+        val downloadableSources =
+            updateInfo.updateSource.filterIsInstance<UpdateSource.DirectDownloadLink>()
         var downloadSource = downloadableSources.find {
             isArchiveFile(it.name)
         }
@@ -65,17 +67,26 @@ class DesktopUpdateApplier(
         requireNotNull(downloadSource) {
             "Can't find proper download link for your platform! Please update it manually"
         }
-        val downloadedFile = updateDownloader.downloadUpdate(downloadSource)
+        val downloadedFile = try {
+            updateDownloader.downloadUpdate(downloadSource)
+        } catch (e: Exception) {
+            downloading = false
+            throw e
+        }
         if (!downloadedFile.exists()) {
             downloading = false
             return
         }
         val updateInstaller = when {
             isArchiveFile(downloadSource.name) -> {
+                val appFolderInArchive = when {
+                    Platform.isMac() -> "$appName.app"
+                    else -> appName
+                }
                 UpdateInstallerFromArchiveFile(
                     archiveFile = downloadedFile,
                     installationFolder = installationFolder,
-                    appFolderInArchive = appName,
+                    appFolderInArchive = appFolderInArchive,
                     folderToExtractUpdate = File(updateFolder).resolve("extracted"),
                     logDir = logDir,
                 )
@@ -103,6 +114,7 @@ class DesktopUpdateApplier(
             )
         }
     }
+
     override suspend fun cleanup() {
         updateDownloader.removeAllUpdates()
     }

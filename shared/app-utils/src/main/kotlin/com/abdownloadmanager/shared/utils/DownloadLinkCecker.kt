@@ -1,9 +1,12 @@
 package com.abdownloadmanager.shared.utils
 
+import ir.amirab.downloader.utils.DuplicateFilterByPath
+import ir.amirab.util.UrlUtils
 import ir.amirab.util.osfileutil.FileUtils
 import ir.amirab.util.flow.mapStateFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
+import java.io.File
 
 sealed interface CanAddResult {
     data class DownloadAlreadyExists(val itemId: Long) : CanAddResult
@@ -56,7 +59,7 @@ class AddDownloadChecker(
 
     private suspend fun validate(): CanAddResult {
         val link = this.link.value
-        if (!isValidUrl(link)) {
+        if (!UrlUtils.isValidUrl(link)) {
             return CanAddResult.InvalidUrl
         }
         if (!fileNameValid()) {
@@ -64,11 +67,10 @@ class AddDownloadChecker(
         }
         val name = name.value
         val folder = folder.value
+        val file = File(folder, name)
+        val duplicateFilterByPath = DuplicateFilterByPath(file)
         val items = downloadSystem
-            .getDownloadItemByLink(link)
-            .filter {
-                it.name == name
-            }
+            .getDownloadItemsBy(duplicateFilterByPath::isDuplicate)
 
 //        val fileExists = File(folder, name).exists()
 

@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import com.abdownloadmanager.desktop.storage.PageStatesStorage
+import com.abdownloadmanager.desktop.utils.configurable.Configurable
 import com.abdownloadmanager.resources.Res
 import com.abdownloadmanager.shared.utils.proxy.ProxyManager
 import com.abdownloadmanager.shared.utils.proxy.ProxyMode
@@ -26,6 +27,9 @@ import ir.amirab.util.osfileutil.FileUtils
 import ir.amirab.util.flow.createMutableStateFlowFromStateFlow
 import ir.amirab.util.flow.mapStateFlow
 import ir.amirab.util.flow.mapTwoWayStateFlow
+import ir.amirab.util.platform.Platform
+import ir.amirab.util.platform.isMac
+import ir.amirab.util.platform.isWindows
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
 import org.koin.core.component.KoinComponent
@@ -35,12 +39,16 @@ sealed class SettingSections(
     val icon: IconSource,
     val name: StringSource,
 ) {
-    data object Appearance : SettingSections(MyIcons.appearance, Res.string.appearance.asStringSource())
+    data object Appearance :
+        SettingSections(MyIcons.appearance, Res.string.appearance.asStringSource())
 
     //    TODO ADD Network section (proxy , etc..)
     //    data object Network : SettingSections(MyIcons.network, "Network")
-    data object DownloadEngine : SettingSections(MyIcons.downloadEngine, Res.string.download_engine.asStringSource())
-    data object BrowserIntegration : SettingSections(MyIcons.network, Res.string.browser_integration.asStringSource())
+    data object DownloadEngine :
+        SettingSections(MyIcons.downloadEngine, Res.string.download_engine.asStringSource())
+
+    data object BrowserIntegration :
+        SettingSections(MyIcons.network, Res.string.browser_integration.asStringSource())
 }
 
 interface SettingSectionGetter {
@@ -50,6 +58,10 @@ interface SettingSectionGetter {
 object ThreadCountLimitation {
     const val MAX_ALLOWED_THREAD_COUNT = 256
     const val MAX_NORMAL_VALUE = 32
+}
+
+object MaximumDownloadRetriesLimitation {
+    const val MAX_ALLOWED_RETRIES = 1024
 }
 
 fun threadCountConfig(appRepository: AppRepository): IntConfigurable {
@@ -64,7 +76,7 @@ fun threadCountConfig(appRepository: AppRepository): IntConfigurable {
                 add(
                     Res.string.settings_download_thread_count_describe
                         .asStringSourceWithARgs(
-                            Res.string.settings_download_thread_count_describe_createArgs(
+                            Res.string.`settings_download_thread_count_describe_createArgs`(
                                 count = it.toString()
                             )
                         )
@@ -75,6 +87,28 @@ fun threadCountConfig(appRepository: AppRepository): IntConfigurable {
                     )
                 }
             }.combineStringSources("\n")
+        },
+    )
+}
+
+fun maxDownloadRetryCount(appRepository: AppRepository): IntConfigurable {
+    return IntConfigurable(
+        title = Res.string.settings_download_max_retries_count.asStringSource(),
+        description = Res.string.settings_download_max_retries_count_description.asStringSource(),
+        backedBy = appRepository.maxDownloadRetryCount,
+        range = 0..MaximumDownloadRetriesLimitation.MAX_ALLOWED_RETRIES,
+        renderMode = IntConfigurable.RenderMode.TextField,
+        describe = {
+            if (it == 0) {
+                Res.string.settings_download_max_retries_count_describe_no_retries.asStringSource()
+            } else {
+                Res.string.settings_download_max_retries_count_describe_n_retries
+                    .asStringSourceWithARgs(
+                        Res.string.settings_download_max_retries_count_describe_n_retries_createArgs(
+                            count = "$it"
+                        )
+                    )
+            }
         },
     )
 }
@@ -99,6 +133,21 @@ fun useServerLastModified(appRepository: AppRepository): BooleanConfigurable {
         title = Res.string.settings_use_server_last_modified_time.asStringSource(),
         description = Res.string.settings_use_server_last_modified_time_description.asStringSource(),
         backedBy = appRepository.useServerLastModifiedTime,
+        describe = {
+            if (it) {
+                Res.string.enabled.asStringSource()
+            } else {
+                Res.string.disabled.asStringSource()
+            }
+        },
+    )
+}
+
+fun appendExtensionToIncompleteDownloads(appRepository: AppRepository): BooleanConfigurable {
+    return BooleanConfigurable(
+        title = Res.string.settings_append_extension_to_incomplete_downloads.asStringSource(),
+        description = Res.string.settings_append_extension_to_incomplete_downloads_description.asStringSource(),
+        backedBy = appRepository.appendExtensionToIncompleteDownloads,
         describe = {
             if (it) {
                 Res.string.enabled.asStringSource()
@@ -184,7 +233,10 @@ fun useCategoryByDefault(appSettingsStorage: AppSettingsStorage): BooleanConfigu
     )
 }
 
-fun speedUnit(appRepository: AppRepository, scope: CoroutineScope): EnumConfigurable<ConvertSizeConfig> {
+fun speedUnit(
+    appRepository: AppRepository,
+    scope: CoroutineScope
+): EnumConfigurable<ConvertSizeConfig> {
     return EnumConfigurable(
         title = Res.string.settings_download_speed_unit.asStringSource(),
         description = Res.string.settings_download_speed_unit_description.asStringSource(),
@@ -235,7 +287,10 @@ fun speedLimitConfig(appRepository: AppRepository): SpeedLimitConfigurable {
             if (it == 0L) {
                 Res.string.unlimited.asStringSource()
             } else {
-                convertPositiveSpeedToHumanReadable(it, appRepository.speedUnit.value).asStringSource()
+                convertPositiveSpeedToHumanReadable(
+                    it,
+                    appRepository.speedUnit.value
+                ).asStringSource()
             }
         }
     )
@@ -412,6 +467,23 @@ fun mergeTopBarWithTitleBarConfig(appSettings: AppSettingsStorage): BooleanConfi
     )
 }
 
+
+fun useNativeMenuBarConfig(appSettings: AppSettingsStorage): BooleanConfigurable? {
+    if (Platform.isMac().not()) return null
+    return BooleanConfigurable(
+        title = Res.string.settings_use_native_menu_bar.asStringSource(),
+        description = Res.string.settings_use_native_menu_bar_description.asStringSource(),
+        backedBy = appSettings.useNativeMenuBar,
+        describe = {
+            if (it) {
+                Res.string.enabled.asStringSource()
+            } else {
+                Res.string.disabled.asStringSource()
+            }
+        },
+    )
+}
+
 fun showIconLabels(appSettings: AppSettingsStorage): BooleanConfigurable {
     return BooleanConfigurable(
         title = Res.string.settings_show_icon_labels.asStringSource(),
@@ -522,15 +594,16 @@ class SettingsComponent(
     val proxyManager by inject<ProxyManager>()
     val themeManager by inject<ThemeManager>()
     val languageManager by inject<LanguageManager>()
-    val allConfigs = object : SettingSectionGetter {
+    private val allConfigs = object : SettingSectionGetter {
         override operator fun get(key: SettingSections): List<Configurable<*>> {
             return when (key) {
-                Appearance -> listOf(
+                Appearance -> listOfNotNull(
                     themeConfig(themeManager, scope),
                     languageConfig(languageManager, scope),
                     uiScaleConfig(appSettings),
                     autoStartConfig(appSettings),
                     mergeTopBarWithTitleBarConfig(appSettings),
+                    useNativeMenuBarConfig(appSettings),
                     showIconLabels(appSettings),
                     speedUnit(appRepository, scope),
                     playSoundNotification(appSettings),
@@ -549,11 +622,13 @@ class SettingsComponent(
                     useAverageSpeedConfig(appRepository),
                     speedLimitConfig(appRepository),
                     threadCountConfig(appRepository),
+                    maxDownloadRetryCount(appRepository),
                     useCategoryByDefault(appSettings),
                     dynamicPartDownloadConfig(appRepository),
                     autoShowDownloadProgressWindow(appSettings),
                     showDownloadFinishWindow(appSettings),
                     useServerLastModified(appRepository),
+                    appendExtensionToIncompleteDownloads(appRepository),
                     useSparseFileAllocation(appRepository),
                     trackDeletedFilesOnDisk(appRepository),
                     ignoreSSLCertificates(appSettings),

@@ -21,10 +21,21 @@ object ExceptionUtils {
                 e is SocketException ||
                 e is SocketTimeoutException
     }
-    fun isResponseError(e:Throwable):Boolean{
+
+    fun isResponseError(e: Throwable): Boolean {
         return e is UnSuccessfulResponseException
     }
 }
+
+inline fun <T : Throwable> T.throwIf(condition: (T) -> Boolean) {
+    if (condition(this)) {
+        throw this
+    }
+}
+inline fun <T : Throwable> T.throwIfCancelled() {
+    throwIf { ExceptionUtils.isNormalCancellation(this) }
+}
+
 
 fun Throwable.printStackIfNOtUsual() {
     if (

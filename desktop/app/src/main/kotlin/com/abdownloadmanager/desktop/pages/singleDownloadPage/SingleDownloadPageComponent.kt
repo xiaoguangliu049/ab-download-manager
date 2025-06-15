@@ -25,6 +25,7 @@ import ir.amirab.util.compose.asStringSource
 import ir.amirab.util.compose.asStringSourceWithARgs
 import ir.amirab.util.flow.combineStateFlows
 import ir.amirab.util.flow.mapTwoWayStateFlow
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -54,9 +55,11 @@ class SingleDownloadComponent(
 ) : BaseComponent(ctx),
     ContainsEffects<SingleDownloadEffects> by supportEffects(),
     KoinComponent {
+    private val appScope: CoroutineScope by inject()
     private val downloadSystem: DownloadSystem by inject()
     private val appSettings: AppSettingsStorage by inject()
     private val appRepository: AppRepository by inject()
+    private val applicationScope: CoroutineScope by inject()
     val fileIconProvider: FileIconProvider by inject()
     private val singleDownloadPageStateToPersist by lazy {
         get<PageStatesStorage>().downloadPage
@@ -135,7 +138,15 @@ class SingleDownloadComponent(
                 add(
                     SingleDownloadPagePropertyItem(
                         Res.string.download_page_downloaded_size.asStringSource(),
-                        convertPositiveSizeToHumanReadable(it.progress, appRepository.sizeUnit.value)
+                        StringSource.CombinedStringSource(
+                            buildList {
+                                add(convertPositiveSizeToHumanReadable(it.progress, appRepository.sizeUnit.value))
+                                if (it.percent != null) {
+                                    add("(${it.percent}%)".asStringSource())
+                                }
+                            },
+                            " "
+                        )
                     )
                 )
                 add(
@@ -186,30 +197,31 @@ class SingleDownloadComponent(
             DownloadJobStatus.IDLE -> Res.string.idle
             is DownloadJobStatus.PreparingFile -> Res.string.preparing_file
             DownloadJobStatus.Resuming -> Res.string.resuming
+            is DownloadJobStatus.Retrying -> Res.string.retrying
         }.asStringSource()
     }
 
     fun openFolder() {
         val itemState = itemStateFlow.value
-        scope.launch {
+        appScope.launch {
             if (itemState is CompletedDownloadItemState) {
                 downloadItemOpener.openDownloadItemFolder(downloadId)
             }
-            onDismiss()
         }
+        onDismiss()
     }
 
     fun openFile(alsoClose: Boolean = true) {
         val itemState = itemStateFlow.value
-        scope.launch {
+        appScope.launch {
             if (itemState is CompletedDownloadItemState) {
                 runCatching {
                     downloadItemOpener.openDownloadItem(downloadId)
                 }
             }
-            if (alsoClose) {
-                onDismiss()
-            }
+        }
+        if (alsoClose) {
+            onDismiss()
         }
     }
 
@@ -248,6 +260,18 @@ class SingleDownloadComponent(
         }
     }
 
+    fun cancel() {
+        applicationScope.launch {
+            val state = itemStateFlow.value as? ProcessingDownloadItemState
+            if (state?.status is DownloadJobStatus.IsActive) {
+                downloadSystem.manualPause(downloadId)
+            }
+        }
+        scope.launch {
+            onDismiss()
+        }
+    }
+
     fun bringToFront() {
         sendEffect(SingleDownloadEffects.BringToFront)
     }
@@ -265,6 +289,9 @@ class SingleDownloadComponent(
         speedLimit = MutableStateFlow(dItem?.speedLimit ?: 0)
         downloadManager.listOfJobsEvents
             .filterIsInstance<DownloadManagerEvents.OnJobChanged>()
+            .filter {
+                it.downloadItem.id == dItem?.id
+            }
             .onEach { event ->
                 threadCount.update {
                     event.downloadItem.preferredConnectionCount ?: 0

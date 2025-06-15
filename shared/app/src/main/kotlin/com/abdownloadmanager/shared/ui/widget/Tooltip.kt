@@ -24,33 +24,35 @@ import com.abdownloadmanager.shared.utils.ui.WithContentColor
 import ir.amirab.util.compose.StringSource
 import kotlinx.coroutines.delay
 
+private const val TooltipDelay = 500L
+
 @Composable
 fun Tooltip(
     tooltip: StringSource,
-    delayUntilShow: Long = 500,
+    delayUntilShow: Long = TooltipDelay,
+    anchor: Alignment = Alignment.TopCenter,
+    alignment: Alignment = Alignment.TopCenter,
     content: @Composable () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
     var showHint by remember { mutableStateOf(false) }
     LaunchedEffect(isHovered) {
-        if (isHovered) {
-            delay(delayUntilShow)
-            showHint = true
-        } else {
-            showHint = false
-        }
+        showHint = isHovered
     }
     Column(
         modifier = Modifier
             .hoverable(interactionSource)
     ) {
         if (showHint) {
-            TooltipPopup(
+            DelayedTooltipPopup(
                 onRequestCloseShowHelpContent = {
                     showHint = false
                 },
                 content = tooltip.rememberString(),
+                delay = delayUntilShow,
+                anchor = anchor,
+                alignment = alignment
             )
         }
         content()
@@ -61,11 +63,13 @@ fun Tooltip(
 fun TooltipPopup(
     onRequestCloseShowHelpContent: () -> Unit,
     content: String,
+    anchor: Alignment = Alignment.TopCenter,
+    alignment: Alignment = Alignment.TopCenter
 ) {
     Popup(
         popupPositionProvider = rememberComponentRectPositionProvider(
-            anchor = Alignment.TopCenter,
-            alignment = Alignment.TopCenter,
+            anchor = anchor,
+            alignment = alignment,
         ),
         onDismissRequest = onRequestCloseShowHelpContent
     ) {
@@ -87,5 +91,28 @@ fun TooltipPopup(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun DelayedTooltipPopup(
+    onRequestCloseShowHelpContent: () -> Unit,
+    content: String,
+    delay: Long = TooltipDelay,
+    anchor: Alignment = Alignment.TopCenter,
+    alignment: Alignment = Alignment.TopCenter,
+) {
+    var showPopup by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(delay)
+        showPopup = true
+    }
+    if (showPopup) {
+        TooltipPopup(
+            onRequestCloseShowHelpContent = onRequestCloseShowHelpContent,
+            content = content,
+            anchor = anchor,
+            alignment = alignment,
+        )
     }
 }

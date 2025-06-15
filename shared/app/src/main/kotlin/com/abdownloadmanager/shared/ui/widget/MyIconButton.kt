@@ -29,14 +29,15 @@ fun alphaFlicker(): Float {
 fun IconActionButton(
     icon: IconSource,
     contentDescription: String,
+    modifier: Modifier = Modifier,
     indicateActive: Boolean = false,
     requiresAttention: Boolean = false,
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(6.dp)
     Box(
-        Modifier
+        modifier
             .ifThen(!enabled) {
                 alpha(0.5f)
             }

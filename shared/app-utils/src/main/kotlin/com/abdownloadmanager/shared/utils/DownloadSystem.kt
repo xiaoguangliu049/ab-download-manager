@@ -114,14 +114,13 @@ class DownloadSystem(
         alsoRemoveFile: Boolean,
         context: DownloadItemContext,
     ) {
-        downloadManager.deleteDownload(id, {
-            if (it.status == DownloadStatus.Completed) {
+        downloadManager.deleteDownload(
+            id = id,
+            alsoRemoveFile = {
                 alsoRemoveFile
-            } else {
-                // always remove file if download is not finished!
-                true
-            }
-        }, context)
+            },
+            context = context
+        )
         categoryManager.removeItemInCategories(listOf(id))
     }
 
@@ -183,6 +182,10 @@ class DownloadSystem(
         }
     }
 
+    suspend fun getDownloadItemsBy(selector: (DownloadItem) -> Boolean): List<DownloadItem> {
+        return downloadListDB.getAll().filter(selector)
+    }
+
     suspend fun getOrCreateDownloadByLink(
         downloadItem: DownloadItem,
     ): Long {
@@ -213,6 +216,7 @@ class DownloadSystem(
             it.getFullPath().path == path
         }
     }
+
     fun getDownloadItemsByFolder(folder: String): List<IDownloadItemState> {
         return downloadMonitor.downloadListFlow.value.filter {
             it.folder == folder
@@ -277,23 +281,14 @@ class DownloadSystem(
         return downloadMonitor.isDownloadActiveFlow(id).value
     }
 
-    suspend fun editDownload(updatedItem: DownloadItem) {
-        val wasActive = isDownloadActive(updatedItem.id)
+    suspend fun editDownload(id: Long, applyUpdate: (DownloadItem) -> Unit) {
+        val wasActive = isDownloadActive(id)
         if (wasActive) {
-            manualPause(updatedItem.id)
+            manualPause(id)
         }
-        downloadManager.updateDownloadItem(updatedItem.id) { currentItem ->
-            var shouldUpdate = true
-            if (currentItem.folder == updatedItem.folder && currentItem.name != updatedItem.name) {
-                val success = getDownloadFile(currentItem).renameTo(getDownloadFile(updatedItem))
-                shouldUpdate = success
-            }
-            if (shouldUpdate) {
-                currentItem.applyFrom(updatedItem)
-            }
-        }
+        downloadManager.updateDownloadItem(id, applyUpdate)
         if (wasActive) {
-            manualResume(updatedItem.id)
+            manualResume(id)
         }
     }
 }

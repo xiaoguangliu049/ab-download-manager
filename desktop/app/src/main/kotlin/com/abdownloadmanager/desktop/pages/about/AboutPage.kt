@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.platform.LocalUriHandler
@@ -34,12 +35,14 @@ import com.abdownloadmanager.shared.ui.widget.IconActionButton
 import com.abdownloadmanager.shared.ui.widget.Tooltip
 import com.abdownloadmanager.shared.utils.div
 import com.abdownloadmanager.resources.Res
+import com.abdownloadmanager.shared.ui.widget.ActionButton
+import com.abdownloadmanager.shared.utils.ui.LocalContentColor
+import ir.amirab.util.URLOpener
 import ir.amirab.util.UrlUtils
 import ir.amirab.util.compose.IconSource
 import ir.amirab.util.compose.StringSource
 import ir.amirab.util.compose.asStringSource
 import ir.amirab.util.compose.resources.myStringResource
-import java.net.URL
 
 @Composable
 fun AboutPage(
@@ -134,6 +137,8 @@ private fun RenderAppInfo(
                     myStringResource(Res.string.developed_with_love_for_you),
                 )
                 Spacer(Modifier.height(8.dp))
+                DonateButton()
+                Spacer(Modifier.height(8.dp))
                 Spacer(
                     Modifier
                         .fillMaxWidth()
@@ -143,9 +148,7 @@ private fun RenderAppInfo(
                 Spacer(Modifier.height(8.dp))
                 val websiteUrl = SharedConstants.projectWebsite
                 val websiteDisplayName = remember(websiteUrl) {
-                    kotlin.runCatching {
-                        URL(websiteUrl).host
-                    }.getOrNull() ?: websiteUrl
+                    UrlUtils.getHost(websiteUrl) ?: websiteUrl
                 }
                 LinkText(
                     text = websiteDisplayName,
@@ -199,35 +202,35 @@ private fun SocialAndLinks(
             MyIcons.earth,
             Res.string.visit_the_project_website.asStringSource(),
             onClick = {
-                UrlUtils.openUrl(SharedConstants.projectWebsite)
+                URLOpener.openUrl(SharedConstants.projectWebsite)
             }
         )
         SocialSmallButton(
             MyIcons.openSource,
             Res.string.view_the_source_code.asStringSource(),
             onClick = {
-                UrlUtils.openUrl(SharedConstants.projectSourceCode)
+                URLOpener.openUrl(SharedConstants.projectSourceCode)
             }
         )
         SocialSmallButton(
             MyIcons.speaker,
             Res.string.channel.asStringSource(),
             onClick = {
-                UrlUtils.openUrl(SharedConstants.telegramChannelUrl)
+                URLOpener.openUrl(SharedConstants.telegramChannelUrl)
             }
         )
         SocialSmallButton(
             MyIcons.group,
             Res.string.group.asStringSource(),
             onClick = {
-                UrlUtils.openUrl(SharedConstants.telegramGroupUrl)
+                URLOpener.openUrl(SharedConstants.telegramGroupUrl)
             }
         )
         SocialSmallButton(
             MyIcons.language,
             Res.string.translators_contribute_title.asStringSource(),
             onClick = {
-                UrlUtils.openUrl(SharedConstants.projectTranslations)
+                URLOpener.openUrl(SharedConstants.projectTranslations)
             }
         )
     }
@@ -253,7 +256,7 @@ private fun CreditsSection(
             title = Res.string.this_is_a_free_and_open_source_software.asStringSource(),
             description = Res.string.view_the_source_code.asStringSource(),
             onClick = {
-                UrlUtils.openUrl(AppInfo.sourceCode)
+                URLOpener.openUrl(AppInfo.sourceCode)
             }
         )
         AboutPageListItemButton(
@@ -303,9 +306,9 @@ private fun AboutPageListItemButton(
     val shape = RoundedCornerShape(6.dp)
     Row(
         modifier
-            .clickable(onClick = onClick)
             .border(1.dp, myColors.onBackground / 0.15f, shape)
             .clip(shape)
+            .clickable(onClick = onClick)
             .background(myColors.surface / 0.5f)
             .padding(
                 horizontal = 8.dp,
@@ -451,6 +454,26 @@ fun MaybeLinkText(
             overflow = overflow
         )
     }
+}
+
+@Composable
+private fun DonateButton() {
+    ActionButton(
+        backgroundColor = SolidColor(LocalContentColor.current / 0.05f),
+        start = {
+            MyIcon(
+                MyIcons.hearth,
+                null,
+                modifier = Modifier.size(16.dp),
+                tint = myColors.error,
+            )
+            Spacer(Modifier.width(8.dp))
+        },
+        text = myStringResource(Res.string.donate),
+        onClick = {
+            URLOpener.openUrl(SharedConstants.donateLink)
+        }
+    )
 }
 
 private val LinkStyle: TextStyle

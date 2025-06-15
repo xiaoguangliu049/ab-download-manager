@@ -6,6 +6,7 @@ import com.abdownloadmanager.desktop.di.Di
 import com.abdownloadmanager.shared.utils.ui.icon.MyIcons
 import com.abdownloadmanager.desktop.utils.AppInfo
 import com.abdownloadmanager.desktop.utils.ClipboardUtil
+import com.abdownloadmanager.desktop.window.Browser
 import ir.amirab.util.compose.action.AnAction
 import ir.amirab.util.compose.action.MenuItem
 import ir.amirab.util.compose.action.buildMenu
@@ -20,8 +21,9 @@ import ir.amirab.downloader.queue.activeQueuesFlow
 import ir.amirab.downloader.queue.inactiveQueuesFlow
 import com.abdownloadmanager.shared.utils.extractors.linkextractor.DownloadCredentialFromStringExtractor
 import com.abdownloadmanager.shared.utils.extractors.linkextractor.DownloadCredentialsFromCurl
-import ir.amirab.util.UrlUtils
+import ir.amirab.util.URLOpener
 import ir.amirab.util.compose.asStringSource
+import ir.amirab.util.desktop.PlatformAppActivator
 import ir.amirab.util.flow.combineStateFlows
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
@@ -136,7 +138,13 @@ val browserIntegrations = MenuItem.SubMenu(
             item(
                 title = browserExtension.type.getName().asStringSource(),
                 icon = browserExtension.type.getIcon(),
-                onClick = { UrlUtils.openUrl(browserExtension.url) }
+                onClick = {
+                    val browser = Browser.getBrowserByType(browserExtension.type)
+                    val success = browser?.openLink(browserExtension.url) == true
+                    if (!success) {
+                        URLOpener.openUrl(browserExtension.url)
+                    }
+                }
             )
         }
     }
@@ -152,12 +160,16 @@ val showDownloadList = simpleAction(
     Res.string.show_downloads.asStringSource(),
     MyIcons.settings,
 ) {
+    PlatformAppActivator.active()
     appComponent.openHome()
 }
 
 val checkForUpdateAction = simpleAction(
     title = Res.string.update_check_for_update.asStringSource(),
     icon = MyIcons.refresh,
+    checkEnable = MutableStateFlow(
+        appComponent.updater.isUpdateSupported()
+    )
 ) {
     appComponent.updater.requestCheckForUpdate()
 }
@@ -180,22 +192,29 @@ val openTranslators = simpleAction(
     appComponent.openTranslatorsPage()
 }
 
+val donate = simpleAction(
+    title = Res.string.donate.asStringSource(),
+    icon = MyIcons.hearth,
+) {
+    URLOpener.openUrl(SharedConstants.donateLink)
+}
+
 val supportActionGroup = MenuItem.SubMenu(
     title = Res.string.support_and_community.asStringSource(),
     icon = MyIcons.group,
     items = buildMenu {
         item(Res.string.website.asStringSource(), MyIcons.appIcon) {
-            UrlUtils.openUrl(AppInfo.website)
+            URLOpener.openUrl(AppInfo.website)
         }
         item(Res.string.source_code.asStringSource(), MyIcons.openSource) {
-            UrlUtils.openUrl(AppInfo.sourceCode)
+            URLOpener.openUrl(AppInfo.sourceCode)
         }
         subMenu(Res.string.telegram.asStringSource(), MyIcons.telegram) {
             item(Res.string.channel.asStringSource(), MyIcons.speaker) {
-                UrlUtils.openUrl(SharedConstants.telegramChannelUrl)
+                URLOpener.openUrl(SharedConstants.telegramChannelUrl)
             }
             item(Res.string.group.asStringSource(), MyIcons.group) {
-                UrlUtils.openUrl(SharedConstants.telegramGroupUrl)
+                URLOpener.openUrl(SharedConstants.telegramGroupUrl)
             }
         }
     }
@@ -223,6 +242,7 @@ fun moveToQueueAction(
         }
     }
 }
+
 fun createMoveToCategoryAction(
     category: Category,
     itemIds: List<Long>,

@@ -93,8 +93,16 @@ dependencies {
 }
 
 aboutLibraries {
-    prettyPrint = true
-    registerAndroidTasks = false
+    export {
+        prettyPrint = true
+    }
+    android {
+        registerAndroidTasks = false
+    }
+    library {
+        duplicationMode = com.mikepenz.aboutlibraries.plugin.DuplicateMode.MERGE
+        duplicationRule = com.mikepenz.aboutlibraries.plugin.DuplicateRule.SIMPLE
+    }
 }
 
 tasks.processResources {
@@ -145,6 +153,7 @@ compose {
                     pkgPackageVersion = getAppVersionStringForPackaging(Pkg)
                     dmgPackageVersion = getAppVersionStringForPackaging(Dmg)
                     iconFile = project.file("icons/icon.icns")
+                    jvmArgs("-Dapple.awt.enableTemplateImages=true")
                 }
                 windows {
                     exePackageVersion = getAppVersionStringForPackaging(Exe)
@@ -185,14 +194,22 @@ installerPlugin {
             "header_image_file" to project.file("resources/installer/abdm-header-image.bmp"),
             "sidebar_image_file" to project.file("resources/installer/abdm-sidebar-image.bmp")
         )
-
+    }
+    macos {
+        appName = getAppName()
+        inputDir = project.file("build/compose/binaries/main-release/app/")
+        appFileName = "${getAppName()}.app"
+        backgroundImage = project.file("resources/installer/dmg_background.png")
+        outputFileName = getAppName()
+        licenseFile = rootProject.file("LICENSE")
+        volumeIcon = project.file("icons/icon.icns")
     }
 }
 
 
 // generate a file with these constants
 buildConfig {
-    packageName = "$desktopPackageName"
+    packageName = desktopPackageName
     buildConfigField(
         "PACKAGE_NAME",
         provider {
@@ -225,6 +242,12 @@ buildConfig {
         "PROJECT_SOURCE_CODE",
         provider {
             "https://github.com/amir1376/ab-download-manager"
+        }
+    )
+    buildConfigField(
+        "DONATE_LINK",
+        provider {
+            "https://github.com/amir1376/ab-download-manager/blob/master/DONATE.md"
         }
     )
     buildConfigField(
@@ -285,7 +308,9 @@ val appPackageNameByComposePlugin
         "compose.desktop.application.nativeDistributions.packageName must not be null!"
     }
 
-val distributableAppArchiveDir: Provider<Directory> = project.layout.buildDirectory.dir("dist/archives")
+val distributableAppArchiveDir: Provider<Directory> =
+    project.layout.buildDirectory.dir("dist/archives")
+
 fun AbstractArchiveTask.fromAppImagePath() {
     from(tasks.named("createReleaseDistributable"))
     destinationDirectory.set(distributableAppArchiveDir)
@@ -311,14 +336,9 @@ val createDistributableAppArchive by tasks.registering {
 }
 
 val createBinariesForCi by tasks.registering {
-    val nativeDistributions = compose.desktop.application.nativeDistributions
-    val mainRelease = nativeDistributions.outputBaseDir.dir("main-release")
     if (installerPlugin.isThisPlatformSupported()) {
         dependsOn(installerPlugin.createInstallerTask)
         inputs.dir(installerPlugin.outputFolder)
-    } else {
-        dependsOn("packageReleaseDistributionForCurrentOS")
-        inputs.dir(mainRelease)
     }
     dependsOn(createDistributableAppArchive)
     inputs.property("appVersion", getAppVersionString())
@@ -341,22 +361,6 @@ val createBinariesForCi by tasks.registering {
                 )
             }
             logger.lifecycle("app packages for '${targets.joinToString(", ") { it.name }}' written in $output using the installer plugin")
-        } else {
-            val allowedTargets = nativeDistributions
-                .targetFormats.filter { it.isCompatibleWithCurrentOS }
-                .map {
-                    it.toInstallerTargetFormat()
-                }
-            for (target in allowedTargets) {
-                CiUtils.movePackagedAndCreateSignature(
-                    getAppVersion(),
-                    packageName,
-                    target,
-                    mainRelease.get().asFile.resolve(target.outputDirName),
-                    output,
-                )
-            }
-            logger.lifecycle("app packages for '${allowedTargets.joinToString(", ") { it.name }}' written in $output using compose packager tool")
         }
         val appArchiveDistributableDir = distributableAppArchiveDir.get().asFile
         CiUtils.copyAndHashToDestination(
