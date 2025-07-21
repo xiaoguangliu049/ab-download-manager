@@ -38,6 +38,7 @@ class CategoryComponent(
             val category = categoryManager.getCategoryById(id) ?: return@launch
             setIcon(category.iconSource())
             setName(category.name)
+            setTypesEnabled(category.acceptedFileTypes.isNotEmpty())
             setTypes(category.acceptedFileTypes.joinToString(" "))
             setUrlPatternsEnabled(category.acceptedUrlPatterns.isNotEmpty())
             setUrlPatterns(category.acceptedUrlPatterns.joinToString(" "))
@@ -56,6 +57,12 @@ class CategoryComponent(
     val name = _name.asStateFlow()
     fun setName(name: String) {
         _name.value = name
+    }
+
+    private val _typesEnabled = MutableStateFlow(false)
+    val typesEnabled = _typesEnabled.asStateFlow()
+    fun setTypesEnabled(value: Boolean) {
+        _typesEnabled.value = value
     }
 
     private val _types = MutableStateFlow("")
@@ -114,19 +121,27 @@ class CategoryComponent(
             Category(
                 id = id,
                 name = name.value,
-                acceptedFileTypes = types.value
-                    .split(" ")
-                    .filterNot { it.isBlank() }
-                    .distinct(),
+                acceptedFileTypes = if (typesEnabled.value) {
+                    types.value
+                        .split(" ")
+                        .filterNot { it.isBlank() }
+                        .distinct()
+                } else {
+                    emptyList()
+                },
                 icon = icon
                     .value!!
                     .uriOrNull()!!,
                 path = path,
                 usePath = usePath.value,
-                acceptedUrlPatterns = urlPatterns.value
-                    .split(" ")
-                    .filterNot { it.isBlank() }
-                    .distinct(),
+                acceptedUrlPatterns = if (urlPatternsEnabled.value) {
+                    urlPatterns.value
+                        .split(" ")
+                        .filterNot { it.isBlank() }
+                        .distinct()
+                } else {
+                    emptyList()
+                },
                 items = emptyList() // ignored!
             )
         )

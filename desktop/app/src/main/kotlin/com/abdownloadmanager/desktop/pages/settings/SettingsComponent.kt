@@ -29,7 +29,6 @@ import ir.amirab.util.flow.mapStateFlow
 import ir.amirab.util.flow.mapTwoWayStateFlow
 import ir.amirab.util.platform.Platform
 import ir.amirab.util.platform.isMac
-import ir.amirab.util.platform.isWindows
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
 import org.koin.core.component.KoinComponent
@@ -76,7 +75,7 @@ fun threadCountConfig(appRepository: AppRepository): IntConfigurable {
                 add(
                     Res.string.settings_download_thread_count_describe
                         .asStringSourceWithARgs(
-                            Res.string.`settings_download_thread_count_describe_createArgs`(
+                            Res.string.settings_download_thread_count_describe_createArgs(
                                 count = it.toString()
                             )
                         )
@@ -361,6 +360,27 @@ fun proxyConfig(proxyManager: ProxyManager, scope: CoroutineScope): ProxyConfigu
     )
 }
 
+fun fontConfig(
+    fontManager: FontManager,
+    scope: CoroutineScope,
+): FontConfigurable {
+    return FontConfigurable(
+        title = Res.string.settings_font.asStringSource(),
+        description = Res.string.settings_font_description.asStringSource(),
+        backedBy = createMutableStateFlowFromStateFlow(
+            flow = fontManager.currentFontInfo,
+            updater = { font ->
+                fontManager.setFont(font.id)
+            },
+            scope = scope,
+        ),
+        possibleValues = fontManager.selectableFonts.value,
+        describe = {
+            it.name
+        }
+    )
+}
+
 fun uiScaleConfig(appSettings: AppSettingsStorage): EnumConfigurable<Float?> {
     return EnumConfigurable(
         title = Res.string.settings_ui_scale.asStringSource(),
@@ -396,19 +416,71 @@ fun themeConfig(
     themeManager: ThemeManager,
     scope: CoroutineScope,
 ): ThemeConfigurable {
-    val currentThemeName = themeManager.currentThemeInfo
-    val themes = themeManager.possibleThemesToSelect
+    val currentThemeInfo = themeManager.currentThemeInfo
+    val themes = themeManager.selectableThemes
     return ThemeConfigurable(
         title = Res.string.settings_theme.asStringSource(),
         description = Res.string.settings_theme_description.asStringSource(),
         backedBy = createMutableStateFlowFromStateFlow(
-            flow = currentThemeName,
+            flow = currentThemeInfo,
             updater = {
                 themeManager.setTheme(it.id)
             },
             scope = scope,
         ),
         possibleValues = themes.value,
+        describe = {
+            it.name
+        },
+    )
+}
+
+fun defaultDarkThemeConfig(
+    themeManager: ThemeManager,
+    scope: CoroutineScope,
+): ThemeConfigurable {
+    val currentDefaultDarkThemeInfo = themeManager.selectedDarkThemeInfo
+    val darkThemes = themeManager.selectableDarkThemes
+    return ThemeConfigurable(
+        title = Res.string.settings_default_dark_theme.asStringSource(),
+        description = Res.string.settings_default_dark_theme_description.asStringSource(),
+        enabled = themeManager.currentThemeInfo.mapStateFlow {
+            it.id == ThemeManager.systemThemeInfo.id
+        },
+        backedBy = createMutableStateFlowFromStateFlow(
+            flow = currentDefaultDarkThemeInfo,
+            updater = {
+                themeManager.setDarkTheme(it.id)
+            },
+            scope = scope,
+        ),
+        possibleValues = darkThemes.value,
+        describe = {
+            it.name
+        },
+    )
+}
+
+fun defaultLightThemeConfig(
+    themeManager: ThemeManager,
+    scope: CoroutineScope,
+): ThemeConfigurable {
+    val currentDefaultLightThemeInfo = themeManager.selectedLightThemeInfo
+    val lightThemes = themeManager.selectableLightThemes
+    return ThemeConfigurable(
+        title = Res.string.settings_default_light_theme.asStringSource(),
+        description = Res.string.settings_default_light_theme_description.asStringSource(),
+        enabled = themeManager.currentThemeInfo.mapStateFlow {
+            it.id == ThemeManager.systemThemeInfo.id
+        },
+        backedBy = createMutableStateFlowFromStateFlow(
+            flow = currentDefaultLightThemeInfo,
+            updater = {
+                themeManager.setLightTheme(it.id)
+            },
+            scope = scope,
+        ),
+        possibleValues = lightThemes.value,
         describe = {
             it.name
         },
@@ -437,6 +509,17 @@ fun languageConfig(
             },
             scope = scope,
         ),
+        valueToString = {
+            if (it == null) {
+                emptyList()
+            } else {
+                listOfNotNull(
+                    it.nativeName,
+                    it.locale.languageCode,
+                    it.locale.countryCode,
+                )
+            }
+        },
         possibleValues = listOf(null).plus(allLanguages),
         describe = {
             val isAuto = it == null
@@ -489,6 +572,21 @@ fun showIconLabels(appSettings: AppSettingsStorage): BooleanConfigurable {
         title = Res.string.settings_show_icon_labels.asStringSource(),
         description = Res.string.settings_show_icon_labels_description.asStringSource(),
         backedBy = appSettings.showIconLabels,
+        describe = {
+            if (it) {
+                Res.string.enabled.asStringSource()
+            } else {
+                Res.string.disabled.asStringSource()
+            }
+        },
+    )
+}
+
+fun useRelativeDateTime(appSettings: AppSettingsStorage): BooleanConfigurable {
+    return BooleanConfigurable(
+        title = Res.string.settings_use_relative_date_time.asStringSource(),
+        description = Res.string.settings_use_relative_date_time_description.asStringSource(),
+        backedBy = appSettings.useRelativeDateTime,
         describe = {
             if (it) {
                 Res.string.enabled.asStringSource()
@@ -594,17 +692,22 @@ class SettingsComponent(
     val proxyManager by inject<ProxyManager>()
     val themeManager by inject<ThemeManager>()
     val languageManager by inject<LanguageManager>()
+    val fontManager by inject<FontManager>()
     private val allConfigs = object : SettingSectionGetter {
         override operator fun get(key: SettingSections): List<Configurable<*>> {
             return when (key) {
                 Appearance -> listOfNotNull(
                     themeConfig(themeManager, scope),
+                    defaultDarkThemeConfig(themeManager, scope),
+                    defaultLightThemeConfig(themeManager, scope),
                     languageConfig(languageManager, scope),
+                    fontConfig(fontManager, scope),
                     uiScaleConfig(appSettings),
                     autoStartConfig(appSettings),
                     mergeTopBarWithTitleBarConfig(appSettings),
                     useNativeMenuBarConfig(appSettings),
                     showIconLabels(appSettings),
+                    useRelativeDateTime(appSettings),
                     speedUnit(appRepository, scope),
                     playSoundNotification(appSettings),
                     useSystemTray(appSettings),

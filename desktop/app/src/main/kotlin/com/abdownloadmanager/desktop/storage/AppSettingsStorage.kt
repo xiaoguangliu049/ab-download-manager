@@ -14,11 +14,15 @@ import java.io.File
 @Serializable
 data class AppSettingsModel(
     val theme: String = "dark",
+    val defaultDarkTheme: String = "dark",
+    val defaultLightTheme: String = "light",
     val language: String? = null,
+    val font: String? = null,
     val uiScale: Float? = null,
     val mergeTopBarWithTitleBar: Boolean = false,
     val useNativeMenuBar: Boolean = false,
     val showIconLabels: Boolean = true,
+    val useRelativeDateTime: Boolean = true,
     val useSystemTray: Boolean = true,
     val threadCount: Int = 8,
     val maxDownloadRetryCount: Int = 0,
@@ -50,11 +54,15 @@ data class AppSettingsModel(
     object ConfigLens : Lens<MapConfig, AppSettingsModel>, KoinComponent {
         object Keys {
             val theme = stringKeyOf("theme")
+            val defaultDarkTheme = stringKeyOf("defaultDarkTheme")
+            val defaultLightTheme = stringKeyOf("defaultLightTheme")
             val language = stringKeyOf("language")
+            val font = stringKeyOf("font")
             val uiScale = floatKeyOf("uiScale")
             val mergeTopBarWithTitleBar = booleanKeyOf("mergeTopBarWithTitleBar")
             val useNativeMenuBar = booleanKeyOf("useNativeMenuBar")
             val showIconLabels = booleanKeyOf("showIconLabels")
+            val useRelativeDateTime = booleanKeyOf("useRelativeDateTime")
             val useSystemTray = booleanKeyOf("useSystemTray")
             val threadCount = intKeyOf("threadCount")
             val maxDownloadRetryCount = intKeyOf("maxDownloadRetryCount")
@@ -83,11 +91,15 @@ data class AppSettingsModel(
             val default by lazy { AppSettingsModel.default }
             return AppSettingsModel(
                 theme = source.get(Keys.theme) ?: default.theme,
+                defaultDarkTheme = source.get(Keys.defaultDarkTheme) ?: default.defaultDarkTheme,
+                defaultLightTheme = source.get(Keys.defaultLightTheme) ?: default.defaultLightTheme,
                 language = source.get(Keys.language) ?: default.language,
+                font = source.get(Keys.font) ?: default.font,
                 uiScale = source.get(Keys.uiScale) ?: default.uiScale,
                 mergeTopBarWithTitleBar = source.get(Keys.mergeTopBarWithTitleBar) ?: default.mergeTopBarWithTitleBar,
                 useNativeMenuBar = source.get(Keys.useNativeMenuBar) ?: default.useNativeMenuBar,
                 showIconLabels = source.get(Keys.showIconLabels) ?: default.showIconLabels,
+                useRelativeDateTime = source.get(Keys.useRelativeDateTime) ?: default.useRelativeDateTime,
                 useSystemTray = source.get(Keys.useSystemTray) ?: default.useSystemTray,
                 threadCount = source.get(Keys.threadCount) ?: default.threadCount,
                 maxDownloadRetryCount = source.get(Keys.maxDownloadRetryCount) ?: default.maxDownloadRetryCount,
@@ -120,11 +132,15 @@ data class AppSettingsModel(
         override fun set(source: MapConfig, focus: AppSettingsModel): MapConfig {
             return source.apply {
                 put(Keys.theme, focus.theme)
+                put(Keys.defaultDarkTheme, focus.defaultDarkTheme)
+                put(Keys.defaultLightTheme, focus.defaultLightTheme)
                 putNullable(Keys.language, focus.language)
+                putNullable(Keys.font, focus.font)
                 putNullable(Keys.uiScale, focus.uiScale)
                 put(Keys.mergeTopBarWithTitleBar, focus.mergeTopBarWithTitleBar)
                 put(Keys.useNativeMenuBar, focus.useNativeMenuBar)
                 put(Keys.showIconLabels, focus.showIconLabels)
+                put(Keys.useRelativeDateTime, focus.useRelativeDateTime)
                 put(Keys.useSystemTray, focus.useSystemTray)
                 put(Keys.threadCount, focus.threadCount)
                 put(Keys.maxDownloadRetryCount, focus.maxDownloadRetryCount)
@@ -151,6 +167,15 @@ data class AppSettingsModel(
     }
 }
 
+private val fontLens: Lens<AppSettingsModel, String?>
+    get() = Lens(
+        get = {
+            it.font
+        },
+        set = { s, f ->
+            s.copy(font = f)
+        }
+    )
 private val uiScaleLens: Lens<AppSettingsModel, Float?>
     get() = Lens(
         get = {
@@ -176,11 +201,16 @@ class AppSettingsStorage(
     ConfigBaseSettingsByMapConfig<AppSettingsModel>(settings, AppSettingsModel.ConfigLens),
     LanguageStorage {
     val theme = from(AppSettingsModel.theme)
+    val defaultDarkTheme = from(AppSettingsModel.defaultDarkTheme)
+    val defaultLightTheme = from(AppSettingsModel.defaultLightTheme)
+
     override val selectedLanguage = from(languageLens)
+    val font = from(fontLens)
     val uiScale = from(uiScaleLens)
     val mergeTopBarWithTitleBar = from(AppSettingsModel.mergeTopBarWithTitleBar)
     val useNativeMenuBar = from(AppSettingsModel.useNativeMenuBar)
     val showIconLabels = from(AppSettingsModel.showIconLabels)
+    val useRelativeDateTime = from(AppSettingsModel.useRelativeDateTime)
     val useSystemTray = from(AppSettingsModel.useSystemTray)
     val threadCount = from(AppSettingsModel.threadCount)
     val dynamicPartCreation = from(AppSettingsModel.dynamicPartCreation)

@@ -6,6 +6,8 @@ import com.abdownloadmanager.desktop.di.Di
 import com.abdownloadmanager.shared.utils.ui.icon.MyIcons
 import com.abdownloadmanager.desktop.utils.AppInfo
 import com.abdownloadmanager.desktop.utils.ClipboardUtil
+import com.abdownloadmanager.desktop.utils.DesktopEntryCreator
+import com.abdownloadmanager.desktop.utils.isAppInstalled
 import com.abdownloadmanager.desktop.window.Browser
 import ir.amirab.util.compose.action.AnAction
 import ir.amirab.util.compose.action.MenuItem
@@ -117,9 +119,10 @@ val stopAllAction = simpleAction(
     }
 ) {
     scope.launch {
+        val activeDownloadIds = downloadSystem.downloadMonitor.activeDownloadListFlow.value.map { it.id }
+        appComponent.closeDownloadDialog(*activeDownloadIds.toLongArray())
         downloadSystem.stopAnything()
     }
-}.apply {
 }
 
 // ui exit
@@ -150,6 +153,13 @@ val browserIntegrations = MenuItem.SubMenu(
     }
 )
 
+val createDesktopEntryAction = simpleAction(
+    Res.string.create_desktop_entry.asStringSource(),
+    checkEnable = MutableStateFlow(AppInfo.isAppInstalled())
+) {
+    DesktopEntryCreator.createLinuxDesktopEntry()
+}
+
 val gotoSettingsAction = simpleAction(
     Res.string.settings.asStringSource(),
     MyIcons.settings,
@@ -158,7 +168,7 @@ val gotoSettingsAction = simpleAction(
 }
 val showDownloadList = simpleAction(
     Res.string.show_downloads.asStringSource(),
-    MyIcons.settings,
+    MyIcons.download,
 ) {
     PlatformAppActivator.active()
     appComponent.openHome()

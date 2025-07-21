@@ -14,6 +14,51 @@
 
 ### Security
 
+## 1.6.6
+
+### Added
+
+- Option to create desktop entry on Linux (#698)
+
+### Changed
+
+- Renamed Linux desktop and autostart files for better compatibility (#699)
+
+### Fixed
+
+- Removed duplicate UI Scale option in the Settings (#697)
+
+### Improved
+
+- Updated translations
+- Pressing "Stop All" now closes all active download windows (#700)
+
+## 1.6.5
+
+### Added
+
+- New themes (Deep Ocean, new Dark, new Light)
+- Category accepted file types are now optional (#690)
+- Option to change the app font (#692)
+- Option to switch between relative and absolute date/time formats (#694)
+- Option to clear all items in the queue at once
+
+### Changed
+
+- Renamed the previous Dark theme to **Obsidian**
+- Renamed the previous Light theme to **Light Gray**
+
+### Fixed
+
+- Issue where the app wouldn’t start for some Windows users (#695)
+
+### Improved
+
+- Updated translations
+- General UI Improvements
+- Automatically scroll to new downloads on the main page (#672)
+- Improved path validation for new downloads (#693)
+
 ## 1.6.4
 
 ### Added

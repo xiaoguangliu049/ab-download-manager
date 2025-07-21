@@ -53,6 +53,7 @@ import ir.amirab.util.compose.asStringSource
 import ir.amirab.util.compose.asStringSourceWithARgs
 import ir.amirab.util.osfileutil.FileUtils
 import ir.amirab.util.platform.Platform
+import ir.amirab.util.platform.isLinux
 import ir.amirab.util.platform.isMac
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -447,6 +448,7 @@ class QueueActions(
     val mainQueueModel: QueueModel?,
     private val requestDelete: (QueueModel) -> Unit,
     private val requestEdit: (QueueModel) -> Unit,
+    private val requestClearItems: (QueueModel) -> Unit,
     private val onRequestNewQueue: () -> Unit,
 ) {
     private val mainItemExists = MutableStateFlow(mainQueueModel != null)
@@ -491,8 +493,20 @@ class QueueActions(
             }
         },
     )
+    val clearItems = simpleAction(
+        title = Res.string.clear_queue_items.asStringSource(),
+        icon = MyIcons.clear,
+        checkEnable = mainItemExists,
+        onActionPerformed = {
+            scope.launch {
+                useItem {
+                    requestClearItems(it)
+                }
+            }
+        },
+    )
 
-    val addCategoryAction = simpleAction(
+    val addQueueAction = simpleAction(
         title = Res.string.add_new_queue.asStringSource(),
         icon = MyIcons.add,
         onActionPerformed = {
@@ -535,8 +549,9 @@ class QueueActions(
         separator()
         +editAction
         +deleteAction
+        +clearItems
         separator()
-        +addCategoryAction
+        +addQueueAction
     }
 }
 
@@ -753,6 +768,9 @@ class HomeComponent(
                 separator()
             }
             +browserIntegrations
+            if (Platform.isLinux()) {
+                +createDesktopEntryAction
+            }
             separator()
             +gotoSettingsAction
         }
@@ -1125,6 +1143,13 @@ class HomeComponent(
                     .getOrNull()?.let { q ->
                         queuePageManager.openQueues(q.id)
                     }
+            },
+            requestClearItems = {
+                scope.launch {
+                    runCatching {
+                        queueManager.clearQueue(it.id)
+                    }
+                }
             },
             onRequestNewQueue = {
                 queuePageManager.openNewQueueDialog()

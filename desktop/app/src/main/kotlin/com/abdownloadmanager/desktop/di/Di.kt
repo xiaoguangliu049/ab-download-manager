@@ -8,6 +8,7 @@ import com.abdownloadmanager.integration.IntegrationHandler
 import com.abdownloadmanager.desktop.AppComponent
 import com.abdownloadmanager.desktop.SharedConstants
 import com.abdownloadmanager.desktop.integration.IntegrationHandlerImp
+import com.abdownloadmanager.desktop.pages.settings.FontManager
 import com.abdownloadmanager.desktop.pages.settings.ThemeManager
 import com.abdownloadmanager.desktop.pages.updater.UpdateDownloaderViaDownloadSystem
 import ir.amirab.downloader.queue.QueueManager
@@ -257,6 +258,7 @@ val startUpModule = module {
             name = AppInfo.displayName,
             path = AppInfo.exeFile,
             args = listOf(AppArguments.Args.BACKGROUND),
+            packageName = AppInfo.packageName,
         )
     }
 }
@@ -283,6 +285,9 @@ val appModule = module {
     }
     single {
         ThemeManager(get(), get(), get())
+    }
+    single {
+        FontManager(get())
     }
     single {
         LanguageManager(get())
