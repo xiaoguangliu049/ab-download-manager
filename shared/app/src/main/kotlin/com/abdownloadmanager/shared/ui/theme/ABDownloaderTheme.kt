@@ -48,13 +48,21 @@ private val textSizes = TextSizes(
     base = 12.sp,
     lg = 14.sp,
     xl = 16.sp,
+    x2l = 18.sp,
+    x3l = 20.sp,
+    x4l = 22.sp,
+    x5l = 24.sp,
+)
+
+private val shapes = MyShapes(
+    defaultRounded = RoundedCornerShape(6.dp),
 )
 
 @Composable
 fun ABDownloaderTheme(
     myColors: MyColors,
     fontFamily: FontFamily? = null,
-    uiScale: Float? = null,
+    uiScale: Float = DEFAULT_UI_SCALE,
     content: @Composable () -> Unit,
 ) {
     val systemDensity = LocalDensity.current
@@ -62,6 +70,7 @@ fun ABDownloaderTheme(
         LocalMyColors provides AnimatedColors(myColors, tween(500)),
         LocalUiScale provides uiScale,
         LocalSystemDensity provides systemDensity,
+        LocalMyShapes provides shapes,
     ) {
         CompositionLocalProvider(
             LocalContextMenuRepresentation provides myContextMenuRepresentation(),

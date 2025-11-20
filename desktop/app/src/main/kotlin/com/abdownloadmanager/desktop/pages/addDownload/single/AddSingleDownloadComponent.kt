@@ -1,30 +1,18 @@
 package com.abdownloadmanager.desktop.pages.addDownload.single
 
 import com.abdownloadmanager.desktop.pages.addDownload.AddDownloadComponent
-import com.abdownloadmanager.desktop.pages.addDownload.DownloadUiChecker
-import com.abdownloadmanager.desktop.pages.settings.configurable.IntConfigurable
-import com.abdownloadmanager.desktop.pages.settings.configurable.SpeedLimitConfigurable
-import com.abdownloadmanager.desktop.pages.settings.configurable.StringConfigurable
 import com.abdownloadmanager.desktop.repository.AppRepository
-import com.abdownloadmanager.desktop.utils.*
 import androidx.compose.runtime.*
+import com.abdownloadmanager.desktop.pages.addDownload.AddDownloadCredentialsInUiProps
 import com.abdownloadmanager.desktop.pages.addDownload.ImportOptions
 import com.abdownloadmanager.desktop.pages.addDownload.SilentImportOptions
-import com.abdownloadmanager.desktop.pages.settings.ThreadCountLimitation
-import com.abdownloadmanager.desktop.pages.settings.configurable.FileChecksumConfigurable
 import com.abdownloadmanager.desktop.storage.AppSettingsStorage
 import com.abdownloadmanager.shared.utils.mvi.ContainsEffects
 import com.abdownloadmanager.shared.utils.mvi.supportEffects
-import com.abdownloadmanager.resources.Res
 import com.abdownloadmanager.shared.utils.*
 import com.abdownloadmanager.shared.utils.FileIconProvider
-import com.abdownloadmanager.shared.utils.extractors.linkextractor.DownloadCredentialFromStringExtractor
 import com.arkivanov.decompose.ComponentContext
-import ir.amirab.downloader.connection.DownloaderClient
-import ir.amirab.downloader.downloaditem.DownloadCredentials
-import ir.amirab.downloader.downloaditem.DownloadItem
 import ir.amirab.downloader.downloaditem.DownloadStatus
-import ir.amirab.downloader.downloaditem.withCredentials
 import ir.amirab.downloader.queue.QueueManager
 import ir.amirab.downloader.utils.OnDuplicateStrategy
 import ir.amirab.downloader.utils.orDefault
@@ -35,10 +23,16 @@ import org.koin.core.component.inject
 import com.abdownloadmanager.shared.utils.category.Category
 import com.abdownloadmanager.shared.utils.category.CategoryItem
 import com.abdownloadmanager.shared.utils.category.CategoryManager
+import com.abdownloadmanager.shared.downloaderinui.add.CanAddResult
+import com.abdownloadmanager.shared.downloaderinui.DownloaderInUi
+import com.abdownloadmanager.shared.utils.perhostsettings.PerHostSettingsManager
+import com.abdownloadmanager.shared.utils.perhostsettings.getSettingsForURL
+import ir.amirab.downloader.NewDownloadItemProps
+import ir.amirab.downloader.downloaditem.DownloadJobExtraConfig
+import ir.amirab.downloader.downloaditem.EmptyContext
 import ir.amirab.downloader.downloaditem.IDownloadCredentials
 import ir.amirab.downloader.queue.DefaultQueueInfo
-import ir.amirab.util.compose.asStringSource
-import ir.amirab.util.compose.asStringSourceWithARgs
+import ir.amirab.util.compose.StringSource
 import kotlinx.coroutines.*
 import kotlinx.coroutines.selects.select
 
@@ -53,23 +47,31 @@ class AddSingleDownloadComponent(
     val onRequestAddToQueue: OnRequestAddSingleItem,
     val onRequestAddCategory: () -> Unit,
     val openExistingDownload: (Long) -> Unit,
-    val updateExistingDownloadCredentials: (Long, IDownloadCredentials) -> Unit,
+    val updateExistingDownloadCredentials: (Long, IDownloadCredentials, DownloadJobExtraConfig?) -> Unit,
     private val downloadItemOpener: DownloadItemOpener,
     importOptions: ImportOptions,
     id: String,
+    downloaderInUi: DownloaderInUi<IDownloadCredentials, *, *, *, *, *, *, *, *>,
+    initialCredentials: AddDownloadCredentialsInUiProps,
 ) : AddDownloadComponent(ctx, id),
     KoinComponent,
     ContainsEffects<AddSingleDownloadPageEffects> by supportEffects() {
-
     private val appScope: CoroutineScope by inject()
     private val appSettings: AppSettingsStorage by inject()
     private val appRepository: AppRepository by inject()
-    private val client: DownloaderClient by inject()
+    private val perHostSettingsManager: PerHostSettingsManager by inject()
     val downloadSystem: DownloadSystem by inject()
     val iconProvider: FileIconProvider by inject()
     private val _shouldShowWindow = MutableStateFlow(importOptions.silentImport == null)
     override val shouldShowWindow: StateFlow<Boolean> = _shouldShowWindow.asStateFlow()
-
+    val downloadInputsComponent = downloaderInUi.createNewDownloadInputs(
+        initialFolder = appRepository.saveLocation.value,
+        initialName = initialCredentials.extraConfig.getAndFixSuggestedName().orEmpty(),
+        downloadSystem = downloadSystem,
+        scope = scope,
+        initialCredentials = initialCredentials.credentials,
+    )
+    val downloadChecker = downloadInputsComponent.downloadUiChecker
     private val categoryManager: CategoryManager by inject()
 
     val categories = categoryManager.categoriesFlow
@@ -120,21 +122,13 @@ class AddSingleDownloadComponent(
     }
 
 
-    private val downloadChecker = DownloadUiChecker(
-        initialFolder = appRepository.saveLocation.value,
-        downloadSystem = downloadSystem,
-        scope = scope,
-        downloaderClient = client,
-        initialCredentials = DownloadCredentials.empty(),
-    )
-
     //inputs
     val credentials = downloadChecker.credentials.asStateFlow()
     val name = downloadChecker.name.asStateFlow()
     val folder = downloadChecker.folder.asStateFlow()
     val onDuplicateStrategy: MutableStateFlow<OnDuplicateStrategy?> = MutableStateFlow(null)
 
-    fun setCredentials(downloadCredentials: DownloadCredentials) {
+    fun setCredentials(downloadCredentials: IDownloadCredentials) {
         downloadChecker.credentials.update { downloadCredentials }
     }
 
@@ -150,7 +144,22 @@ class AddSingleDownloadComponent(
         this.onDuplicateStrategy.update { onDuplicateStrategy }
     }
 
+    fun getLengthString(): StringSource {
+        return downloadInputsComponent.getLengthString()
+    }
+
     init {
+        credentials
+            .map { it.link }
+            .distinctUntilChanged()
+            .debounce(250)
+            .onEachLatest { link ->
+                perHostSettingsManager
+                    .getSettingsForURL(link)
+                    ?.let(downloadInputsComponent::applyHostSettingsToExtraConfig)
+            }
+            .flowOn(Dispatchers.IO)
+            .launchIn(scope)
         merge(
             credentials.mapStateFlow { it.link },
             name,
@@ -182,30 +191,7 @@ class AddSingleDownloadComponent(
         }.launchIn(scope)
     }
 
-    private var wasOpened = false
-    fun onPageOpen() {
-        if (wasOpened) return
-        scope.launch {
-            withContext(Dispatchers.Default) {
-                // don't paste of link already exists
-                // maybe a link already added by browser extension etc.
-                if (credentials.value == DownloadCredentials.empty()) {
-                    fillLinkIfThereIsALinkInClipboard()
-                }
-            }
-        }
-        wasOpened = true
-    }
 
-    private fun fillLinkIfThereIsALinkInClipboard() {
-        val possibleLinks = ClipboardUtil.read() ?: return
-        val downloadLinks = DownloadCredentialFromStringExtractor.extract(possibleLinks)
-        if (downloadLinks.size == 1) {
-            sendEffect(AddSingleDownloadPageEffects.SuggestUrl(downloadLinks[0].link))
-        }
-    }
-
-    private val length: StateFlow<Long?> = downloadChecker.length
     val canAddResult = downloadChecker.canAddToDownloadResult.asStateFlow()
     private val canAdd = downloadChecker.canAdd
     private val isDuplicate = downloadChecker.isDuplicate
@@ -229,120 +215,14 @@ class AddSingleDownloadComponent(
         }
     }
 
-    //extra settings
-    private var threadCount = MutableStateFlow(null as Int?)
-    private var speedLimit = MutableStateFlow(0L)
-    private var fileChecksum = MutableStateFlow(null as FileChecksum?)
-
-
-    val downloadItem = combineStateFlows(
-        this.credentials,
-        this.folder,
-        this.name,
-        this.length,
-        this.speedLimit,
-        this.threadCount,
-        this.fileChecksum,
-    ) {
-            credentials,
-            folder,
-            name,
-            length,
-            speedLimit,
-            threadCount,
-            fileChecksum,
-        ->
-        DownloadItem(
-            id = -1,
-            folder = folder,
-            name = name,
-            link = credentials.link,
-            contentLength = length ?: DownloadItem.LENGTH_UNKNOWN,
-            dateAdded = 0,
-            startTime = null,
-            completeTime = null,
-            status = DownloadStatus.Added,
-            preferredConnectionCount = threadCount,
-            speedLimit = speedLimit,
-            fileChecksum = fileChecksum?.toString()
-        ).withCredentials(credentials)
-    }
+    val downloadItem = downloadInputsComponent.downloadItem
+    val downloadJobConfig = downloadInputsComponent.downloadJobConfig
 
 
     var showMoreSettings by mutableStateOf(false)
 
 
-    val configurables = listOf(
-        SpeedLimitConfigurable(
-            Res.string.download_item_settings_speed_limit.asStringSource(),
-            Res.string.download_item_settings_speed_limit_description.asStringSource(),
-            backedBy = speedLimit,
-            describe = {
-                if (it == 0L) Res.string.unlimited.asStringSource()
-                else convertPositiveSpeedToHumanReadable(
-                    it, appRepository.speedUnit.value
-                ).asStringSource()
-            }
-        ),
-        FileChecksumConfigurable(
-            Res.string.download_item_settings_file_checksum.asStringSource(),
-            Res.string.download_item_settings_file_checksum_description.asStringSource(),
-            backedBy = fileChecksum,
-            describe = { "".asStringSource() }
-        ),
-        IntConfigurable(
-            Res.string.settings_download_thread_count.asStringSource(),
-            Res.string.settings_download_thread_count_description.asStringSource(),
-            backedBy = threadCount.mapTwoWayStateFlow(
-                map = {
-                    it ?: 0
-                },
-                unMap = {
-                    it.takeIf { it >= 1 }
-                }
-            ),
-            range = 0..ThreadCountLimitation.MAX_ALLOWED_THREAD_COUNT,
-            describe = {
-                if (it == 0) Res.string.use_global_settings.asStringSource()
-                else Res.string.download_item_settings_thread_count_describe
-                    .asStringSourceWithARgs(
-                        Res.string.download_item_settings_thread_count_describe_createArgs(
-                            count = it.toString()
-                        )
-                    )
-            }
-        ),
-        StringConfigurable(
-            Res.string.username.asStringSource(),
-            Res.string.download_item_settings_username_description.asStringSource(),
-            backedBy = createMutableStateFlowFromStateFlow(
-                flow = credentials.mapStateFlow {
-                    it.username.orEmpty()
-                },
-                updater = {
-                    setCredentials(credentials.value.copy(username = it.takeIf { it.isNotBlank() }))
-                }, scope
-            ),
-            describe = {
-                "".asStringSource()
-            }
-        ),
-        StringConfigurable(
-            Res.string.password.asStringSource(),
-            Res.string.download_item_settings_password_description.asStringSource(),
-            backedBy = createMutableStateFlowFromStateFlow(
-                flow = credentials.mapStateFlow {
-                    it.password.orEmpty()
-                },
-                updater = {
-                    setCredentials(credentials.value.copy(password = it.takeIf { it.isNotBlank() }))
-                }, scope
-            ),
-            describe = {
-                "".asStringSource()
-            }
-        ),
-    )
+    val configurables = downloadInputsComponent.configurableList
     private val queueManager: QueueManager by inject()
     val queues = queueManager.queues
         .stateIn(
@@ -356,13 +236,18 @@ class AddSingleDownloadComponent(
     }
 
     fun onRequestDownload() {
-        val item = downloadItem.value
+        val downloadItem = this@AddSingleDownloadComponent.downloadItem.value
+        val downloadJobExtraConfig = downloadJobConfig.value
         consumeDialog {
-            saveLocationIfNecessary(item.folder)
+            saveLocationIfNecessary(downloadItem.folder)
             onRequestDownload(
-                item,
-                onDuplicateStrategy.value.orDefault(),
-                getCategoryIfUseCategoryIsOn()?.id
+                item = NewDownloadItemProps(
+                    downloadItem = downloadItem,
+                    extraConfig = downloadJobExtraConfig,
+                    onDuplicateStrategy = onDuplicateStrategy.value.orDefault(),
+                    context = EmptyContext
+                ),
+                categoryId = getCategoryIfUseCategoryIsOn()?.id
             )
         }
     }
@@ -394,12 +279,17 @@ class AddSingleDownloadComponent(
         startQueue: Boolean,
     ) {
         val downloadItem = downloadItem.value
+        val downloadJobConfig = downloadJobConfig.value
         consumeDialog {
             saveLocationIfNecessary(downloadItem.folder)
             onRequestAddToQueue(
-                item = downloadItem,
+                item = NewDownloadItemProps(
+                    downloadItem = downloadItem,
+                    extraConfig = downloadJobConfig,
+                    onDuplicateStrategy = onDuplicateStrategy.value.orDefault(),
+                    context = EmptyContext,
+                ),
                 queueId = queueId,
-                onDuplicateStrategy = onDuplicateStrategy.value.orDefault(),
                 categoryId = getCategoryIfUseCategoryIsOn()?.id,
             ).invokeOnCompletion {
                 if (queueId != null && startQueue) {
@@ -424,7 +314,7 @@ class AddSingleDownloadComponent(
         (canAddResult.value as? CanAddResult.DownloadAlreadyExists)
             ?.itemId
             ?.let {
-                updateExistingDownloadCredentials(it, downloadItem.value)
+                updateExistingDownloadCredentials(it, downloadItem.value, downloadJobConfig.value)
             }
     }
 
@@ -557,17 +447,15 @@ class AddSingleDownloadComponent(
 
 fun interface OnRequestAddSingleItem {
     operator fun invoke(
-        item: DownloadItem,
+        item: NewDownloadItemProps,
         queueId: Long?,
-        onDuplicateStrategy: OnDuplicateStrategy,
         categoryId: Long?,
     ): Deferred<Long>
 }
 
 fun interface OnRequestDownloadSingleItem {
     operator fun invoke(
-        item: DownloadItem,
-        onDuplicateStrategy: OnDuplicateStrategy,
+        item: NewDownloadItemProps,
         categoryId: Long?,
     )
 }

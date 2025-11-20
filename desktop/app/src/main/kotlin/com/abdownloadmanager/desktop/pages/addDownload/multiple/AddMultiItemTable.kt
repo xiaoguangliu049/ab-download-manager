@@ -1,6 +1,5 @@
 package com.abdownloadmanager.desktop.pages.addDownload.multiple
 
-import com.abdownloadmanager.desktop.pages.addDownload.DownloadUiChecker
 import com.abdownloadmanager.shared.utils.ui.WithContentAlpha
 import com.abdownloadmanager.shared.utils.ui.myColors
 import com.abdownloadmanager.shared.utils.ui.theme.myTextSizes
@@ -19,6 +18,8 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.pointer.PointerButton
+import androidx.compose.ui.input.pointer.PointerButton.Companion
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -29,9 +30,8 @@ import com.abdownloadmanager.shared.ui.widget.customtable.CustomCellRenderer
 import com.abdownloadmanager.shared.ui.widget.customtable.Table
 import com.abdownloadmanager.shared.ui.widget.customtable.TableCell
 import com.abdownloadmanager.resources.Res
+import com.abdownloadmanager.shared.downloaderinui.add.TANewDownloadInputs
 import com.abdownloadmanager.shared.utils.FileIconProvider
-import com.abdownloadmanager.shared.utils.LocalSizeUnit
-import com.abdownloadmanager.shared.utils.convertPositiveSizeToHumanReadable
 import com.abdownloadmanager.shared.utils.ui.widget.MyIcon
 import ir.amirab.util.compose.StringSource
 import ir.amirab.util.compose.asStringSource
@@ -51,6 +51,7 @@ fun AddMultiDownloadTable(
     ) {
         val itemHorizontalPadding = 16.dp
         Table(
+            key = component::getIdOf,
             tableState = component.tableState,
             list = component.list,
             modifier = modifier
@@ -119,6 +120,13 @@ fun AddMultiDownloadTable(
                                         toItem = currentId,
                                     )
                                     context.newSelection(ids, true)
+                                }
+                                .onClick(
+                                    matcher = PointerMatcher.mouse(PointerButton.Secondary)
+                                ) {
+                                    component.openConfigurableList(
+                                        component.getIdOf(item)
+                                    )
                                 }
                                 .fillMaxWidth()
                                 .padding(vertical = 1.dp)
@@ -204,7 +212,7 @@ class AddMultiItemListContext(
     }
 }
 
-sealed class AddMultiItemTableCells : TableCell<DownloadUiChecker> {
+sealed class AddMultiItemTableCells : TableCell<TANewDownloadInputs> {
     companion object {
         fun all(): List<AddMultiItemTableCells> {
             return listOf(
@@ -267,7 +275,7 @@ private fun CellText(
 
 @Composable
 private fun NameCell(
-    downloadUiChecker: DownloadUiChecker,
+    downloadUiChecker: TANewDownloadInputs,
     iconProvider: FileIconProvider,
 ) {
     val name by downloadUiChecker.name.collectAsState()
@@ -288,7 +296,7 @@ private fun NameCell(
 
 @Composable
 private fun LinkCell(
-    downloadChecker: DownloadUiChecker,
+    downloadChecker: TANewDownloadInputs,
 ) {
     val credentials by downloadChecker.credentials.collectAsState()
     CellText(credentials.link)
@@ -296,20 +304,18 @@ private fun LinkCell(
 
 @Composable
 private fun SizeCell(
-    downloadChecker: DownloadUiChecker,
+    downloadChecker: TANewDownloadInputs,
 ) {
-    val length by downloadChecker.length.collectAsState()
+    val length by downloadChecker.lengthStringFlow.collectAsState()
     CellText(
-        length?.let {
-            convertPositiveSizeToHumanReadable(it, LocalSizeUnit.current).rememberString()
-        } ?: ""
+        length.rememberString()
     )
 }
 
 @Composable
 private fun CheckCell(
-    onCheckedChange: (DownloadUiChecker, Boolean) -> Unit,
-    downloadChecker: DownloadUiChecker,
+    onCheckedChange: (TANewDownloadInputs, Boolean) -> Unit,
+    downloadChecker: TANewDownloadInputs,
 ) {
     val isChecked = LocalIsChecked.current
     CheckBox(

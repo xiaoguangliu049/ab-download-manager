@@ -2,8 +2,9 @@ package com.abdownloadmanager.desktop.pages.addDownload
 
 import com.abdownloadmanager.desktop.storage.PageStatesStorage
 import com.abdownloadmanager.shared.utils.BaseComponent
+import com.abdownloadmanager.shared.utils.FilenameFixer
 import com.arkivanov.decompose.ComponentContext
-import ir.amirab.downloader.downloaditem.DownloadCredentials
+import ir.amirab.downloader.downloaditem.IDownloadCredentials
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -43,6 +44,12 @@ abstract class AddDownloadComponent(
         }
     }
 
+    fun removeFromLastDownloadLocation(saveLocation: String) {
+        _lastUsedLocations.update {
+            it.filter { it != saveLocation }
+        }
+    }
+
     abstract val shouldShowWindow: StateFlow<Boolean>
 }
 
@@ -51,15 +58,29 @@ interface AddDownloadConfig {
     val importOptions: ImportOptions
 
     data class SingleAddConfig(
-        val credentials: DownloadCredentials = DownloadCredentials.empty(),
+        val credentials: AddDownloadCredentialsInUiProps,
         override val importOptions: ImportOptions = ImportOptions(),
         override val id: String = UUID.randomUUID().toString(),
     ) : AddDownloadConfig
 
     data class MultipleAddConfig(
-        val links: List<DownloadCredentials> = emptyList(),
+        val links: List<AddDownloadCredentialsInUiProps> = emptyList(),
         override val importOptions: ImportOptions = ImportOptions(),
         override val id: String = UUID.randomUUID().toString(),
     ) : AddDownloadConfig
 
+}
+
+data class AddDownloadCredentialsInUiProps(
+    val credentials: IDownloadCredentials,
+    val extraConfig: Configs = Configs(),
+) {
+    data class Configs(
+        // don't consume it directly as it might not be a valid file name on user's current OS
+        val suggestedName: String? = null,
+    ) {
+        fun getAndFixSuggestedName(): String? {
+            return suggestedName?.let(FilenameFixer::fix)
+        }
+    }
 }

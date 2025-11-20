@@ -1,7 +1,7 @@
 package ir.amirab.downloader.destination
 
-import ir.amirab.downloader.part.Part
-import ir.amirab.util.atomicMove
+import ir.amirab.downloader.part.DownloadPart
+import ir.amirab.util.tryAtomicMove
 import java.io.File
 
 abstract class DownloadDestination(
@@ -17,7 +17,9 @@ abstract class DownloadDestination(
         updateLastModified()
     }
 
-    open fun onAllPartsCompleted() {
+    open fun onAllPartsCompleted(
+        onProgressUpdate: (Int?) -> Unit = {}
+    ) {
         allPartsDownloaded = true
         cleanUpJunkFiles()
         updateLastModified()
@@ -25,7 +27,7 @@ abstract class DownloadDestination(
 
     open fun cleanUpJunkFiles() {}
 
-    abstract fun getWriterFor(part: Part): DestWriter?
+    abstract fun getWriterFor(part: DownloadPart): DestWriter
     abstract fun canGetFileWriter(): Boolean
 
     fun returnIfAlreadyHaveWriter(partId: Long): DestWriter? {
@@ -47,10 +49,11 @@ abstract class DownloadDestination(
     abstract suspend fun prepareFile(onProgressUpdate: (Int?) -> Unit)
     abstract suspend fun isDownloadedPartsIsValid(): Boolean
     abstract fun flush()
-    open fun onPartCancelled(part: Part) {
+
+    open fun onPartCancelled(part: DownloadPart) {
         synchronized(this) {
             val cleanAny = fileParts.removeAll {
-                it.id == part.from
+                it.id == part.getID()
             }
             if (cleanAny) {
                 if (fileParts.isEmpty()) {
@@ -82,7 +85,7 @@ abstract class DownloadDestination(
     open fun moveOutput(to: File) {
         if (outputFile.exists()) {
             try {
-                outputFile.atomicMove(to)
+                outputFile.tryAtomicMove(to)
             } catch (e: Exception) {
                 throw IllegalStateException(
                     "Failed to move output file to the new destination: ${e.localizedMessage}",

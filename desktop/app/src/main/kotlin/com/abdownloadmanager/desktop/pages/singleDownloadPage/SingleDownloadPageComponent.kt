@@ -1,17 +1,19 @@
 package com.abdownloadmanager.desktop.pages.singleDownloadPage
 
 import androidx.compose.runtime.Immutable
-import com.abdownloadmanager.desktop.pages.settings.configurable.IntConfigurable
-import com.abdownloadmanager.desktop.pages.settings.configurable.SpeedLimitConfigurable
+import com.abdownloadmanager.shared.ui.configurable.item.IntConfigurable
+import com.abdownloadmanager.shared.ui.configurable.item.SpeedLimitConfigurable
 import com.abdownloadmanager.shared.utils.mvi.ContainsEffects
 import com.abdownloadmanager.shared.utils.mvi.supportEffects
 import arrow.optics.copy
-import com.abdownloadmanager.desktop.pages.settings.ThreadCountLimitation
-import com.abdownloadmanager.desktop.pages.settings.configurable.BooleanConfigurable
+import com.abdownloadmanager.shared.util.ThreadCountLimitation
+import com.abdownloadmanager.shared.ui.configurable.item.BooleanConfigurable
 import com.abdownloadmanager.desktop.repository.AppRepository
 import com.abdownloadmanager.desktop.storage.AppSettingsStorage
+import com.abdownloadmanager.desktop.storage.ExtraDownloadSettingsStorage
 import com.abdownloadmanager.desktop.storage.PageStatesStorage
 import com.abdownloadmanager.resources.Res
+import com.abdownloadmanager.shared.util.convertDurationToHumanReadable
 import com.abdownloadmanager.shared.utils.*
 import com.abdownloadmanager.shared.utils.FileIconProvider
 import com.arkivanov.decompose.ComponentContext
@@ -23,7 +25,9 @@ import ir.amirab.downloader.monitor.*
 import ir.amirab.util.compose.StringSource
 import ir.amirab.util.compose.asStringSource
 import ir.amirab.util.compose.asStringSourceWithARgs
+import ir.amirab.util.desktop.poweraction.PowerActionConfig
 import ir.amirab.util.flow.combineStateFlows
+import ir.amirab.util.flow.createMutableStateFlowFromFlow
 import ir.amirab.util.flow.mapTwoWayStateFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -58,6 +62,7 @@ class SingleDownloadComponent(
     private val appScope: CoroutineScope by inject()
     private val downloadSystem: DownloadSystem by inject()
     private val appSettings: AppSettingsStorage by inject()
+    private val extraDownloadSettingsStorage: ExtraDownloadSettingsStorage by inject()
     private val appRepository: AppRepository by inject()
     private val applicationScope: CoroutineScope by inject()
     val fileIconProvider: FileIconProvider by inject()
@@ -76,6 +81,23 @@ class SingleDownloadComponent(
     ) { global, item ->
         item ?: global
     }
+    val deletePartialFileOnDownloadCancellation = appSettings.deletePartialFileOnDownloadCancellation.asStateFlow()
+
+    val extraDownloadItemSettingsFlow = createMutableStateFlowFromFlow(
+        extraDownloadSettingsStorage
+            .getExternalDownloadItemSettingsAsFlow(downloadId, initialEmit = false),
+        extraDownloadSettingsStorage
+            .getExtraDownloadItemSettings(downloadId),
+        {
+            scope.launch {
+                extraDownloadSettingsStorage.setExtraDownloadItemSettings(
+                    it
+                )
+            }
+        },
+        scope,
+    )
+
 
     private fun shouldShowCompletionDialog(): Boolean {
         return shouldShowCompletionDialog.value
@@ -129,12 +151,23 @@ class SingleDownloadComponent(
             buildList {
                 add(SingleDownloadPagePropertyItem(Res.string.name.asStringSource(), it.name.asStringSource()))
                 add(SingleDownloadPagePropertyItem(Res.string.status.asStringSource(), createStatusString(it)))
-                add(
-                    SingleDownloadPagePropertyItem(
-                        Res.string.size.asStringSource(),
-                        convertPositiveSizeToHumanReadable(it.contentLength, appRepository.sizeUnit.value)
+                if (it is DurationBasedProcessingDownloadItemState) {
+                    add(
+                        SingleDownloadPagePropertyItem(
+                            Res.string.size.asStringSource(),
+                            it.duration
+                                ?.let(::convertDurationToHumanReadable)
+                                ?: Res.string.unknown.asStringSource()
+                        )
                     )
-                )
+                } else {
+                    add(
+                        SingleDownloadPagePropertyItem(
+                            Res.string.size.asStringSource(),
+                            convertPositiveSizeToHumanReadable(it.contentLength, appRepository.sizeUnit.value)
+                        )
+                    )
+                }
                 add(
                     SingleDownloadPagePropertyItem(
                         Res.string.download_page_downloaded_size.asStringSource(),
@@ -263,8 +296,12 @@ class SingleDownloadComponent(
     fun cancel() {
         applicationScope.launch {
             val state = itemStateFlow.value as? ProcessingDownloadItemState
-            if (state?.status is DownloadJobStatus.IsActive) {
-                downloadSystem.manualPause(downloadId)
+            if (deletePartialFileOnDownloadCancellation.value) {
+                downloadSystem.reset(downloadId)
+            } else {
+                if (state?.status is DownloadJobStatus.IsActive) {
+                    downloadSystem.manualPause(downloadId)
+                }
             }
         }
         scope.launch {
@@ -306,7 +343,10 @@ class SingleDownloadComponent(
             .drop(1)
             .debounce(500)
             .onEach { count ->
-                downloadManager.updateDownloadItem(downloadId) {
+                downloadManager.updateDownloadItem(
+                    id = downloadId,
+                    downloadJobExtraConfig = null
+                ) {
                     it.preferredConnectionCount = count.takeIf { it > 0 }
                 }
             }.launchIn(scope)
@@ -314,7 +354,10 @@ class SingleDownloadComponent(
             .drop(1)
             .debounce(500)
             .onEach { limit ->
-                downloadManager.updateDownloadItem(downloadId) {
+                downloadManager.updateDownloadItem(
+                    id = downloadId,
+                    downloadJobExtraConfig = null
+                ) {
                     it.speedLimit = limit
                 }
             }.launchIn(scope)
@@ -323,21 +366,6 @@ class SingleDownloadComponent(
 
     val settings by lazy {
         listOf(
-            BooleanConfigurable(
-                title = Res.string.download_item_settings_show_download_completion_dialog.asStringSource(),
-                description = Res.string.download_item_settings_show_download_completion_dialog_description.asStringSource(),
-                backedBy = itemShouldShowCompletionDialog.mapTwoWayStateFlow(
-                    map = {
-                        it ?: globalShowCompletionDialog.value
-                    },
-                    unMap = { it }
-                ),
-                describe = {
-                    (if (it) Res.string.enabled
-                    else Res.string.enabled)
-                        .asStringSource()
-                },
-            ),
             IntConfigurable(
                 title = Res.string.download_item_settings_thread_count.asStringSource(),
                 description = Res.string.download_item_settings_thread_count_description.asStringSource(),
@@ -367,6 +395,49 @@ class SingleDownloadComponent(
                     } else {
                         convertPositiveSpeedToHumanReadable(it, appRepository.speedUnit.value).asStringSource()
                     }
+                },
+            ),
+        )
+    }
+    val onCompletion by lazy {
+        listOf(
+            BooleanConfigurable(
+                title = Res.string.download_item_settings_shutdown_on_completion.asStringSource(),
+                description = Res.string.download_item_settings_shutdown_on_completion_description.asStringSource(),
+                backedBy = extraDownloadItemSettingsFlow.mapTwoWayStateFlow(
+                    map = {
+                        it.powerActionTypeOnFinish != null
+                    },
+                    unMap = {
+                        copy(
+                            powerActionTypeOnFinish = when (it) {
+                                true -> PowerActionConfig.Type.Shutdown
+                                false -> null
+                            },
+                        )
+                    }
+                ),
+                describe = {
+                    when (it) {
+                        true -> Res.string.enabled
+                        false -> Res.string.disabled
+                    }.asStringSource()
+                },
+            ),
+            BooleanConfigurable(
+                title = Res.string.download_item_settings_show_download_completion_dialog.asStringSource(),
+                description = Res.string.download_item_settings_show_download_completion_dialog_description.asStringSource(),
+                backedBy = itemShouldShowCompletionDialog.mapTwoWayStateFlow(
+                    map = {
+                        it ?: globalShowCompletionDialog.value
+                    },
+                    unMap = { it }
+                ),
+                describe = {
+                    when (it) {
+                        true -> Res.string.enabled
+                        false -> Res.string.disabled
+                    }.asStringSource()
                 },
             ),
         )

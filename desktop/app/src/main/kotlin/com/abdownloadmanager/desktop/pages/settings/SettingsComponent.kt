@@ -1,7 +1,6 @@
 package com.abdownloadmanager.desktop.pages.settings
 
 import com.abdownloadmanager.desktop.pages.settings.SettingSections.*
-import com.abdownloadmanager.desktop.pages.settings.configurable.*
 import com.abdownloadmanager.desktop.repository.AppRepository
 import com.abdownloadmanager.desktop.storage.AppSettingsStorage
 import com.abdownloadmanager.shared.utils.ui.icon.MyIcons
@@ -12,17 +11,33 @@ import com.abdownloadmanager.shared.utils.mvi.supportEffects
 import androidx.compose.runtime.*
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
+import com.abdownloadmanager.desktop.PerHostSettingsPageManager
 import com.abdownloadmanager.desktop.storage.PageStatesStorage
-import com.abdownloadmanager.desktop.utils.configurable.Configurable
+import com.abdownloadmanager.shared.ui.configurable.ConfigurableGroup
 import com.abdownloadmanager.resources.Res
+import com.abdownloadmanager.shared.ui.configurable.item.BooleanConfigurable
+import com.abdownloadmanager.shared.ui.configurable.item.EnumConfigurable
+import com.abdownloadmanager.desktop.ui.configurable.item.FolderConfigurable
+import com.abdownloadmanager.desktop.ui.configurable.item.FontConfigurable
+import com.abdownloadmanager.shared.ui.configurable.item.IntConfigurable
+import com.abdownloadmanager.shared.ui.configurable.item.PerHostSettingsConfigurable
+import com.abdownloadmanager.desktop.ui.configurable.item.ProxyConfigurable
+import com.abdownloadmanager.shared.ui.configurable.item.SpeedLimitConfigurable
+import com.abdownloadmanager.shared.ui.configurable.item.StringConfigurable
+import com.abdownloadmanager.shared.ui.configurable.item.ThemeConfigurable
+import com.abdownloadmanager.shared.ui.theme.ThemeManager
+import com.abdownloadmanager.shared.util.ThreadCountLimitation
 import com.abdownloadmanager.shared.utils.proxy.ProxyManager
 import com.abdownloadmanager.shared.utils.proxy.ProxyMode
+import com.abdownloadmanager.shared.utils.ui.theme.DEFAULT_UI_SCALE
 import com.arkivanov.decompose.ComponentContext
 import ir.amirab.util.compose.*
 import ir.amirab.util.compose.localizationmanager.LanguageInfo
 import ir.amirab.util.compose.localizationmanager.LanguageManager
 import ir.amirab.util.datasize.CommonSizeConvertConfigs
 import ir.amirab.util.datasize.ConvertSizeConfig
+import ir.amirab.util.datasize.SizeFactors
+import ir.amirab.util.datasize.SizeUnit
 import ir.amirab.util.osfileutil.FileUtils
 import ir.amirab.util.flow.createMutableStateFlowFromStateFlow
 import ir.amirab.util.flow.mapStateFlow
@@ -33,6 +48,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import kotlin.math.roundToInt
 
 sealed class SettingSections(
     val icon: IconSource,
@@ -51,12 +67,7 @@ sealed class SettingSections(
 }
 
 interface SettingSectionGetter {
-    operator fun get(key: SettingSections): List<Configurable<*>>
-}
-
-object ThreadCountLimitation {
-    const val MAX_ALLOWED_THREAD_COUNT = 256
-    const val MAX_NORMAL_VALUE = 32
+    operator fun get(key: SettingSections): List<ConfigurableGroup>
 }
 
 object MaximumDownloadRetriesLimitation {
@@ -187,6 +198,21 @@ fun trackDeletedFilesOnDisk(appRepository: AppRepository): BooleanConfigurable {
     )
 }
 
+fun deletePartialFileOnDownloadCancellation(appSettingsStorage: AppSettingsStorage): BooleanConfigurable {
+    return BooleanConfigurable(
+        title = Res.string.settings_delete_partial_file_on_download_cancellation.asStringSource(),
+        description = Res.string.settings_delete_partial_file_on_download_cancellation_description.asStringSource(),
+        backedBy = appSettingsStorage.deletePartialFileOnDownloadCancellation,
+        describe = {
+            if (it) {
+                Res.string.enabled.asStringSource()
+            } else {
+                Res.string.disabled.asStringSource()
+            }
+        },
+    )
+}
+
 fun ignoreSSLCertificates(appSettingsStorage: AppSettingsStorage): BooleanConfigurable {
     return BooleanConfigurable(
         title = Res.string.settings_ignore_ssl_certificates.asStringSource(),
@@ -232,6 +258,33 @@ fun useCategoryByDefault(appSettingsStorage: AppSettingsStorage): BooleanConfigu
     )
 }
 
+fun sizeUnit(
+    appRepository: AppRepository,
+    scope: CoroutineScope
+): EnumConfigurable<ConvertSizeConfig> {
+    return EnumConfigurable(
+        title = Res.string.settings_download_size_unit.asStringSource(),
+        description = Res.string.settings_download_size_unit_description.asStringSource(),
+        backedBy = createMutableStateFlowFromStateFlow(
+            appRepository.sizeUnit,
+            updater = { appRepository.setSizeUnit(it) },
+            scope = scope
+        ),
+        possibleValues = listOf(
+            CommonSizeConvertConfigs.BinaryBytes,
+            CommonSizeConvertConfigs.DecimalBytes,
+        ),
+        describe = {
+            val sizeUnit = SizeUnit(
+                SizeFactors.FactorValue.Kilo,
+                it.baseSize,
+                it.factors,
+            )
+            "$sizeUnit".asStringSource()
+        },
+    )
+}
+
 fun speedUnit(
     appRepository: AppRepository,
     scope: CoroutineScope
@@ -246,11 +299,18 @@ fun speedUnit(
         ),
         possibleValues = listOf(
             CommonSizeConvertConfigs.BinaryBytes,
+            CommonSizeConvertConfigs.DecimalBytes,
             CommonSizeConvertConfigs.BinaryBits,
+            CommonSizeConvertConfigs.DecimalBits,
         ),
         describe = {
-            val u = it.baseSize.longString()
-            "$u/s".asStringSource()
+            val sizeUnit = SizeUnit(
+                SizeFactors.FactorValue.Kilo,
+                it.baseSize,
+                it.factors,
+            )
+            val extraInfo = "${it.factors.baseValue} ${it.baseSize.longString()}/s"
+            "${sizeUnit}/s ($extraInfo)".asStringSource()
         },
     )
 }
@@ -273,6 +333,16 @@ fun autoShowDownloadProgressWindow(settingsStorage: AppSettingsStorage): Boolean
         backedBy = settingsStorage.showDownloadProgressDialog,
         describe = {
             (if (it) Res.string.enabled else Res.string.disabled).asStringSource()
+        },
+    )
+}
+
+fun perHostSettings(perHostSettingsPageManager: PerHostSettingsPageManager): PerHostSettingsConfigurable {
+    return PerHostSettingsConfigurable(
+        title = Res.string.settings_per_host_settings.asStringSource(),
+        description = Res.string.settings_per_host_settings_descriptions.asStringSource(),
+        onRequestOpenPerHostSettingsWindow = {
+            perHostSettingsPageManager.openPerHostSettings(null)
         },
     )
 }
@@ -327,7 +397,7 @@ fun defaultDownloadFolderConfig(appSettings: AppSettingsStorage): FolderConfigur
     )
 }
 
-fun proxyConfig(proxyManager: ProxyManager, scope: CoroutineScope): ProxyConfigurable {
+fun proxyConfig(proxyManager: ProxyManager): ProxyConfigurable {
     return ProxyConfigurable(
         title = Res.string.settings_use_proxy.asStringSource(),
         description = Res.string.settings_use_proxy_description.asStringSource(),
@@ -381,13 +451,12 @@ fun fontConfig(
     )
 }
 
-fun uiScaleConfig(appSettings: AppSettingsStorage): EnumConfigurable<Float?> {
+fun uiScaleConfig(appSettings: AppSettingsStorage): EnumConfigurable<Float> {
     return EnumConfigurable(
         title = Res.string.settings_ui_scale.asStringSource(),
         description = Res.string.settings_ui_scale_description.asStringSource(),
         backedBy = appSettings.uiScale,
         possibleValues = listOf(
-            null,
             0.8f,
             0.9f,
             1f,
@@ -396,17 +465,20 @@ fun uiScaleConfig(appSettings: AppSettingsStorage): EnumConfigurable<Float?> {
             1.5f,
             1.75f,
             2f,
-            2.25f,
-            2.5f,
-            2.75f,
-            3f,
         ),
         renderMode = EnumConfigurable.RenderMode.Spinner,
         describe = {
-            if (it == null) {
-                Res.string.system.asStringSource()
+            val percent = (it * 100).roundToInt()
+            if (it == DEFAULT_UI_SCALE) {
+                StringSource.CombinedStringSource(
+                    listOf(
+                        Res.string.system.asStringSource(),
+                        "($percent%)".asStringSource()
+                    ),
+                    " "
+                )
             } else {
-                "$it x".asStringSource()
+                "$percent%".asStringSource()
             }
         }
     )
@@ -444,9 +516,6 @@ fun defaultDarkThemeConfig(
     return ThemeConfigurable(
         title = Res.string.settings_default_dark_theme.asStringSource(),
         description = Res.string.settings_default_dark_theme_description.asStringSource(),
-        enabled = themeManager.currentThemeInfo.mapStateFlow {
-            it.id == ThemeManager.systemThemeInfo.id
-        },
         backedBy = createMutableStateFlowFromStateFlow(
             flow = currentDefaultDarkThemeInfo,
             updater = {
@@ -470,9 +539,6 @@ fun defaultLightThemeConfig(
     return ThemeConfigurable(
         title = Res.string.settings_default_light_theme.asStringSource(),
         description = Res.string.settings_default_light_theme_description.asStringSource(),
-        enabled = themeManager.currentThemeInfo.mapStateFlow {
-            it.id == ThemeManager.systemThemeInfo.id
-        },
         backedBy = createMutableStateFlowFromStateFlow(
             flow = currentDefaultLightThemeInfo,
             updater = {
@@ -683,6 +749,7 @@ sealed class SettingPageEffects {
 
 class SettingsComponent(
     ctx: ComponentContext,
+    val perHostSettingsPageManager: PerHostSettingsPageManager,
 ) : BaseComponent(ctx),
     KoinComponent,
     ContainsEffects<SettingPageEffects> by supportEffects() {
@@ -694,48 +761,102 @@ class SettingsComponent(
     val languageManager by inject<LanguageManager>()
     val fontManager by inject<FontManager>()
     private val allConfigs = object : SettingSectionGetter {
-        override operator fun get(key: SettingSections): List<Configurable<*>> {
+        override operator fun get(key: SettingSections): List<ConfigurableGroup> {
             return when (key) {
-                Appearance -> listOfNotNull(
-                    themeConfig(themeManager, scope),
-                    defaultDarkThemeConfig(themeManager, scope),
-                    defaultLightThemeConfig(themeManager, scope),
-                    languageConfig(languageManager, scope),
-                    fontConfig(fontManager, scope),
-                    uiScaleConfig(appSettings),
-                    autoStartConfig(appSettings),
-                    mergeTopBarWithTitleBarConfig(appSettings),
-                    useNativeMenuBarConfig(appSettings),
-                    showIconLabels(appSettings),
-                    useRelativeDateTime(appSettings),
-                    speedUnit(appRepository, scope),
-                    playSoundNotification(appSettings),
-                    useSystemTray(appSettings),
+                Appearance -> listOf(
+                    ConfigurableGroup(
+                        mainConfigurable = themeConfig(themeManager, scope),
+                        nestedVisible = themeManager.currentThemeInfo.mapStateFlow {
+                            it.id == ThemeManager.systemThemeInfo.id
+                        },
+                        nestedConfigurable = listOfNotNull(
+                            defaultDarkThemeConfig(themeManager, scope),
+                            defaultLightThemeConfig(themeManager, scope),
+                        )
+                    ),
+                    ConfigurableGroup(
+                        nestedConfigurable = listOf(
+                            languageConfig(languageManager, scope),
+                            fontConfig(fontManager, scope),
+                            uiScaleConfig(appSettings),
+                        )
+                    ),
+                    ConfigurableGroup(
+                        nestedConfigurable = listOfNotNull(
+                            useNativeMenuBarConfig(appSettings),
+                            mergeTopBarWithTitleBarConfig(appSettings),
+                            showIconLabels(appSettings),
+                            useRelativeDateTime(appSettings),
+                            playSoundNotification(appSettings),
+                        )
+                    ),
+                    ConfigurableGroup(
+                        nestedConfigurable = listOf(
+                            autoStartConfig(appSettings),
+                            useSystemTray(appSettings),
+                        )
+                    ),
+                    ConfigurableGroup(
+                        nestedConfigurable = listOf(
+                            sizeUnit(appRepository, scope),
+                            speedUnit(appRepository, scope),
+                            useAverageSpeedConfig(appRepository),
+                        )
+                    ),
+                    ConfigurableGroup(
+                        nestedConfigurable = listOf(
+                            autoShowDownloadProgressWindow(appSettings),
+                            showDownloadFinishWindow(appSettings),
+                        )
+                    )
                 )
 
 //                Network -> listOf()
                 BrowserIntegration -> listOf(
-                    browserIntegrationEnabled(appRepository),
-                    browserIntegrationPort(appRepository)
+                    ConfigurableGroup(
+                        nestedConfigurable = listOf(
+                            browserIntegrationEnabled(appRepository),
+                            browserIntegrationPort(appRepository)
+                        )
+                    )
                 )
 
                 DownloadEngine -> listOf(
-                    defaultDownloadFolderConfig(appSettings),
-                    proxyConfig(proxyManager, scope),
-                    useAverageSpeedConfig(appRepository),
-                    speedLimitConfig(appRepository),
-                    threadCountConfig(appRepository),
-                    maxDownloadRetryCount(appRepository),
-                    useCategoryByDefault(appSettings),
-                    dynamicPartDownloadConfig(appRepository),
-                    autoShowDownloadProgressWindow(appSettings),
-                    showDownloadFinishWindow(appSettings),
-                    useServerLastModified(appRepository),
-                    appendExtensionToIncompleteDownloads(appRepository),
-                    useSparseFileAllocation(appRepository),
-                    trackDeletedFilesOnDisk(appRepository),
-                    ignoreSSLCertificates(appSettings),
-                    userAgent(appSettings),
+                    ConfigurableGroup(
+                        nestedConfigurable = listOf(
+                            defaultDownloadFolderConfig(appSettings),
+                            useCategoryByDefault(appSettings),
+                        )
+                    ),
+                    ConfigurableGroup(
+                        nestedConfigurable = listOf(
+                            speedLimitConfig(appRepository),
+                            threadCountConfig(appRepository),
+                            maxDownloadRetryCount(appRepository),
+                            dynamicPartDownloadConfig(appRepository),
+                        )
+                    ),
+                    ConfigurableGroup(
+                        nestedConfigurable = listOf(
+                            perHostSettings(perHostSettingsPageManager),
+                        )
+                    ),
+                    ConfigurableGroup(
+                        nestedConfigurable = listOf(
+                            proxyConfig(proxyManager),
+                            userAgent(appSettings),
+                            ignoreSSLCertificates(appSettings),
+                            useServerLastModified(appRepository),
+                        )
+                    ),
+                    ConfigurableGroup(
+                        nestedConfigurable = listOf(
+                            trackDeletedFilesOnDisk(appRepository),
+                            appendExtensionToIncompleteDownloads(appRepository),
+                            deletePartialFileOnDownloadCancellation(appSettings),
+                            useSparseFileAllocation(appRepository),
+                        )
+                    ),
                 )
             }
         }

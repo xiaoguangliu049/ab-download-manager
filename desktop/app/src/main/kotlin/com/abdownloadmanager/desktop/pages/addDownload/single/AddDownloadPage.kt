@@ -15,31 +15,27 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.window.WindowDraggableArea
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.window.*
+import arrow.core.Some
 import com.abdownloadmanager.shared.ui.widget.*
 import com.abdownloadmanager.desktop.pages.addDownload.shared.*
 import com.abdownloadmanager.shared.utils.mvi.HandleEffects
 import com.abdownloadmanager.resources.Res
-import com.abdownloadmanager.shared.utils.CanAddResult
-import com.abdownloadmanager.shared.utils.LocalSizeUnit
-import com.abdownloadmanager.shared.utils.convertPositiveSizeToHumanReadable
+import com.abdownloadmanager.shared.downloaderinui.add.CanAddResult
 import com.abdownloadmanager.shared.utils.div
+import com.abdownloadmanager.shared.utils.ui.theme.myShapes
 import ir.amirab.util.compose.resources.myStringResource
 import ir.amirab.downloader.utils.OnDuplicateStrategy
-import ir.amirab.util.compose.asStringSource
 import java.awt.MouseInfo
 
 @Composable
@@ -55,15 +51,10 @@ fun AddDownloadPage(
         val credentials by component.credentials.collectAsState()
         fun setLink(link: String) {
             component.setCredentials(
-                credentials.copy(link = link)
+                credentials.copy(link = Some(link))
             )
         }
 
-        val linkFocus = remember { FocusRequester() }
-        LaunchedEffect(Unit) {
-            component.onPageOpen()
-            linkFocus.requestFocus()
-        }
         HandleEffects(component) {
             when (it) {
                 is AddSingleDownloadPageEffects.SuggestUrl -> {
@@ -76,7 +67,7 @@ fun AddDownloadPage(
             setText = {
                 setLink(it)
             },
-            modifier = Modifier.focusRequester(linkFocus)
+            modifier = Modifier
         )
         Row(
         ) {
@@ -134,7 +125,8 @@ fun AddDownloadPage(
                         CanAddResult.CantWriteInThisFolder -> myStringResource(Res.string.cant_write_to_this_folder)
                         else -> null
                     },
-                    lastUsedLocations = component.lastUsedLocations.collectAsState().value
+                    lastUsedLocations = component.lastUsedLocations.collectAsState().value,
+                    onRequestRemoveSaveLocation = component::removeFromLastDownloadLocation,
                 )
                 val name by component.name.collectAsState()
                 Spacer(Modifier.size(8.dp))
@@ -223,7 +215,7 @@ private fun ShowSolutionsOnDuplicateDownload(component: AddSingleDownloadCompone
         }
 
 
-        val shape = RoundedCornerShape(6.dp)
+        val shape = myShapes.defaultRounded
         Column(
             Modifier
                 .clip(shape)
@@ -570,12 +562,7 @@ fun RenderFileTypeAndSize(
                                     null,
                                     iconModifier
                                 )
-                                val size = fileInfo.totalLength?.let {
-                                    convertPositiveSizeToHumanReadable(it, LocalSizeUnit.current)
-                                }.takeIf {
-                                    // this is a length of a html page (error)
-                                    fileInfo.isSuccessFul
-                                } ?: Res.string.unknown.asStringSource()
+                                val size = component.getLengthString()
                                 Spacer(Modifier.width(8.dp))
                                 Text(
                                     size.rememberString(),
@@ -684,7 +671,7 @@ fun AddDownloadPageTextField(
             modifier = Modifier.fillMaxWidth(),
             background = myColors.surface / 50,
             interactionSource = interactionSource,
-            shape = RoundedCornerShape(6.dp),
+            shape = myShapes.defaultRounded,
             start = start?.let {
                 {
                     WithContentAlpha(0.5f) {

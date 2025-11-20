@@ -15,6 +15,7 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.onClick
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -30,7 +31,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ModifierLocalBeyondBoundsLayout
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.abdownloadmanager.shared.utils.ui.theme.myShapes
 
+private val DefaultShape
+    @Composable
+    get() = myShapes.defaultRounded
 
 @Composable
 fun IntTextField(
@@ -43,7 +48,7 @@ fun IntTextField(
     prettify: (Int) -> String = { it.toString() },
     placeholder: String = "",
     textPadding: PaddingValues = PaddingValues(4.dp),
-    shape: Shape = RectangleShape,
+    shape: Shape = DefaultShape,
 ) {
     NumberTextField(
         value = value,
@@ -191,7 +196,7 @@ fun <T : Comparable<T>> NumberTextField(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     placeholder: String = "",
     textPadding: PaddingValues = PaddingValues(4.dp),
-    shape: Shape = RectangleShape,
+    shape: Shape = DefaultShape,
 ) {
 
     val value by rememberUpdatedState(value)

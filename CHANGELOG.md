@@ -14,6 +14,173 @@
 
 ### Security
 
+## 1.7.1
+
+### Added
+
+- Support for custom data directory (#895)
+
+### Fixed
+
+- System shortcuts not working on the main page (#885)
+- Segment info display issues
+- Suggested file names from browsers are now automatically corrected before use (#896)
+
+### Improved
+
+- Translations updated
+- Download list UI improvements (#897)
+- Extra icon sizes added to the Windows `.ico` file
+
+## 1.7.0
+
+### Added
+
+- Support for downloading media files: audio, video, non encrypted HLS streams from the browser (browser extension needs
+  to be updated)
+- Option to customize each item individually in the “Add Multiple Downloads” page (by right-clicking on each item) (
+  #866)
+- “Download Page” and “Custom User-Agent” options are now available in the “Add Download” > "Configs" dialog
+- Ability to remove recently used save locations (#873)
+
+### Changed
+
+- Browser integration API updated; updating the browser extension is required to support new features
+
+### Improved
+
+- Updated translations
+- The download creation time is now set to when the “Add Download” dialog is opened (#846)
+
+## 1.6.14
+
+### Fixed
+
+- An issue causing slow download speeds on some websites
+
+### Improved
+
+- Updated translations
+- Download Engine improvements
+- Minor UI improvements
+
+## 1.6.13
+
+### Fixed
+
+- **Access Denied** error could sometimes happen when adding a list of downloads (#826)
+
+### Improved
+
+- Updated translations
+- Download engine improvements (#828)
+- **Customize Table Columns** popup now supports drag to reorder (#830)
+
+## 1.6.12
+
+### Added
+
+- **Per Host Settings** — save username, password, thread count, user-agent, and more for specific hosts (#820)
+- Support for using **Move** action by holding **Shift** during drag & drop (#821)
+
+### Changed
+
+- UI scale is now relative to the system scale instead of using a fixed value (#814)
+
+### Fixed
+
+- Encoding issue with the default download folder on Linux (#810)
+
+### Improved
+
+- Updated translations
+- Enhanced multi-display support (#814)
+- Main window now remembers its maximized state (#815)
+
+## 1.6.11
+
+### Added
+
+- Option to change the download size unit (#804)
+
+### Fixed
+
+- "Permission denied" error when starting a new download (#795)
+
+### Improved
+
+- Updated translations
+- Improved settings page (#805)
+- Automatically fix illegal characters in server-provided filenames (#781)
+- Better handling of filenames received from the server (#780)
+- Use the OS default download location on first launch (#789)
+
+## 1.6.10
+
+### Added
+
+- New Black theme (#767)
+
+### Fixed
+
+- Restored missing executable permissions for files inside archives (macOS & Linux) (#765)
+- Eliminated flickering on the "New Update" page (#770)
+
+### Improved
+
+- Updated translations
+- Hovering between menus now works without closing the open one (#766)
+- Better item selection and new keyboard shortcuts on the queue items page (#769)
+- Small UI improvements
+
+## 1.6.9
+
+### Fixed
+
+- "Keep System Awake" was not properly cancelled on Windows (#755)
+- "Create Desktop Entry" had issue if the path contains spaces on Linux (#733)
+- Application crash on systems that have invalid font names (#737)
+- Some settings statuses were not updating correctly (#732)
+- "Download Dialog" position shifted when multiple dialogs were open simultaneously (#758)
+- "Add Download Dialog" position shifted when multiple dialogs were open simultaneously (#761)
+
+### Improved
+
+- Translations updated
+- Better handling of filenames received from the server (#759)
+
+## 1.6.8
+
+### Fixed
+
+- Can't change Auto Shutdown option if it was enabled
+
+## 1.6.7
+
+### Added
+
+- Lithuanian language support
+- Kurdish (Sorani) language support
+- Option to automatically shut down the system when downloads or queues complete (#726)
+- Option to delete partial files on download cancellation (#724)
+
+### Changed
+
+- App icon is now hidden from the Dock at runtime on macOS when the system tray is used (#710)
+- Default max download retry count changed to 3
+
+### Fixed
+
+- Removable storages are no longer monitored on Windows (#705)
+
+### Improved
+
+- Translations updated
+- System stays awake while downloads are in progress (#725)
+- Confirm dialogs and buttons now have better focus behavior
+- Dropdowns are now searchable (#706)
+- IO Operations improvements
+
 ## 1.6.6
 
 ### Added

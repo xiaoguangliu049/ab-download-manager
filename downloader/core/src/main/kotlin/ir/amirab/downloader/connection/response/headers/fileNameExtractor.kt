@@ -1,6 +1,6 @@
 package ir.amirab.downloader.connection.response.headers
 
-import java.net.URLDecoder
+import ir.amirab.util.FilenameDecoder
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -8,7 +8,7 @@ fun extractFileNameFromContentDisposition(contentDispositionValue: String): Stri
     utf8FileNameRegex.find(contentDispositionValue)
         ?.groups?.get("fileName")
         ?.value?.let {
-            runCatching { URLDecoder.decode(it, Charsets.UTF_8) }
+            runCatching { FilenameDecoder.decode(it, Charsets.UTF_8) }
                 .getOrNull()
         }?.let {
             return it
@@ -21,7 +21,7 @@ fun extractFileNameFromContentDisposition(contentDispositionValue: String): Stri
             fileName = runCatching {
                 EmailMimeWordDecoder.decode(fileName)
             }.getOrNull() ?: fileName
-            runCatching { URLDecoder.decode(fileName, Charsets.UTF_8) }
+            runCatching { FilenameDecoder.decode(fileName, Charsets.UTF_8) }
                 .getOrNull()
         }?.let {
             return it
@@ -32,7 +32,7 @@ fun extractFileNameFromContentDisposition(contentDispositionValue: String): Stri
 private val asciiFileNameRegex = """filename=(["']?)(?<fileName>.*?[^\\])\1(?:; ?|$)"""
     .toRegex(RegexOption.IGNORE_CASE)
 
-private val utf8FileNameRegex = """filename\*=UTF-8''(?<fileName>[\w%\-\.]+)(?:; ?|${'$'})"""
+private val utf8FileNameRegex = """filename\*=UTF-8''(?<fileName>[^;\s]+)(?:; ?|$)"""
     .toRegex(RegexOption.IGNORE_CASE)
 
 /**

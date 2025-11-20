@@ -1,13 +1,18 @@
 package com.abdownloadmanager.desktop.pages.queue
 
-import com.abdownloadmanager.desktop.pages.settings.configurable.*
-import com.abdownloadmanager.desktop.utils.configurable.ConfigurableGroup
+import com.abdownloadmanager.shared.ui.configurable.ConfigurableGroup
 import com.abdownloadmanager.shared.utils.BaseComponent
 import ir.amirab.util.flow.createMutableStateFlowFromStateFlow
 import ir.amirab.util.flow.mapStateFlow
 import com.abdownloadmanager.desktop.utils.newScopeBasedOn
 import androidx.compose.runtime.toMutableStateList
+import com.abdownloadmanager.desktop.storage.ExtraQueueSettingsStorage
 import com.abdownloadmanager.resources.Res
+import com.abdownloadmanager.shared.ui.configurable.item.BooleanConfigurable
+import com.abdownloadmanager.shared.ui.configurable.item.DayOfWeekConfigurable
+import com.abdownloadmanager.shared.ui.configurable.item.IntConfigurable
+import com.abdownloadmanager.shared.ui.configurable.item.StringConfigurable
+import com.abdownloadmanager.shared.ui.configurable.item.TimeConfigurable
 import com.arkivanov.decompose.ComponentContext
 import ir.amirab.downloader.monitor.IDownloadItemState
 import ir.amirab.downloader.monitor.IDownloadMonitor
@@ -15,11 +20,16 @@ import ir.amirab.downloader.queue.DownloadQueue
 import ir.amirab.downloader.queue.QueueManager
 import ir.amirab.util.compose.asStringSource
 import ir.amirab.util.compose.asStringSourceWithARgs
+import ir.amirab.util.desktop.poweraction.PowerActionConfig
 import ir.amirab.util.flow.combineStateFlows
+import ir.amirab.util.flow.createMutableStateFlowFromFlow
+import ir.amirab.util.flow.mapTwoWayStateFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import kotlin.collections.map
 
 class QueueInfoComponent(
     ctx: ComponentContext,
@@ -34,6 +44,22 @@ class QueueInfoComponent(
 
 
     val selectedListItems = MutableStateFlow(emptyList<Long>())
+    private val lastSelectedItem = MutableStateFlow(null as Long?)
+
+    val extraQueueSettingsStorage by inject<ExtraQueueSettingsStorage>()
+    val extraDownloadItemSettingsFlow = createMutableStateFlowFromFlow(
+        flow = extraQueueSettingsStorage.getExternalQueueSettingsAsFlow(
+            id = id,
+            initialEmit = false,
+        ),
+        initialValue = extraQueueSettingsStorage.getExtraQueueSettings(id),
+        updater = {
+            scope.launch {
+                extraQueueSettingsStorage.setExtraQueueSettings(it)
+            }
+        },
+        scope = scope,
+    )
 
     init {
         downloadQueue.queueModel.map {
@@ -45,20 +71,32 @@ class QueueInfoComponent(
         }.launchIn(scope)
     }
 
+    fun selectAll() {
+        val all = downloadQueueItems.value.map {
+            it.id
+        }
+        selectedListItems.value = all
+        lastSelectedItem.value = all.last()
+    }
+
+    fun clearSelection() {
+        selectedListItems.value = emptyList()
+        lastSelectedItem.value = null
+    }
+
     fun setSelectedItem(
         id: Long,
         selected: Boolean,
-        singleSelect: Boolean,
+        ctrlPressed: Boolean,
+        shiftPressed: Boolean,
     ) {
-        selectedListItems.update {
-            if (singleSelect) {
-                if (selected) {
-                    listOf(id)
-                } else {
-                    emptyList()
-                }
-            } else {
-                it.toMutableStateList().also { mutableList ->
+        val selectedIds = selectedListItems.value
+        val availableItems = downloadQueueItems.value
+
+        selectedListItems.value = selectedIds.let { selectedIds ->
+            if (ctrlPressed) {
+                lastSelectedItem.value = id
+                selectedIds.toMutableStateList().also { mutableList ->
                     val contains = mutableList.contains(id)
                     if (contains && !selected) {
                         mutableList.remove(id)
@@ -66,8 +104,34 @@ class QueueInfoComponent(
                         mutableList.add(id)
                     }
                 }.toList()
+            } else if (shiftPressed) {
+                val lastSelected = lastSelectedItem.value
+                val fromIndex = lastSelected?.let { lastSelectedId ->
+                    availableItems.indexOfFirst { itemState ->
+                        itemState.id == lastSelectedId
+                    }.takeIf { it != -1 }
+                }
+                val toIndex = availableItems.indexOfFirst { itemState ->
+                    itemState.id == id
+                }.takeIf { it != -1 }
+                if (fromIndex != null && toIndex != null) {
+                    availableItems.map { it.id }.subList(
+                        minOf(fromIndex, toIndex),
+                        maxOf(fromIndex, toIndex) + 1,
+                    )
+                } else {
+                    lastSelectedItem.value = id
+                    listOf(id)
+                }
+            } else {
+                if (selected) {
+                    lastSelectedItem.value = id
+                    listOf(id)
+                } else {
+                    lastSelectedItem.value = null
+                    emptyList()
+                }
             }
-
         }
     }
 
@@ -133,6 +197,11 @@ class QueueInfoComponent(
                         range = 1..32,
                         renderMode = IntConfigurable.RenderMode.TextField,
                     ),
+                ),
+            ),
+            ConfigurableGroup(
+                groupTitle = MutableStateFlow(Res.string.on_completion.asStringSource()),
+                nestedConfigurable = listOf(
                     BooleanConfigurable(
                         Res.string.queue_automatic_stop.asStringSource(),
                         Res.string.queue_automatic_stop_description.asStringSource(),
@@ -150,6 +219,27 @@ class QueueInfoComponent(
                             else Res.string.disabled.asStringSource()
                         },
                     ),
+                    BooleanConfigurable(
+                        title = Res.string.queue_shutdown_on_completion.asStringSource(),
+                        description = Res.string.queue_shutdown_on_completion_description.asStringSource(),
+                        backedBy = extraDownloadItemSettingsFlow.mapTwoWayStateFlow(
+                            map = {
+                                it.powerActionTypeOnFinish != null
+                            },
+                            unMap = {
+                                copy(
+                                    powerActionTypeOnFinish = when (it) {
+                                        true -> PowerActionConfig.Type.Shutdown
+                                        false -> null
+                                    },
+                                )
+                            },
+                        ),
+                        describe = {
+                            if (it) Res.string.enabled.asStringSource()
+                            else Res.string.disabled.asStringSource()
+                        },
+                    )
                 ),
             ),
             ConfigurableGroup(

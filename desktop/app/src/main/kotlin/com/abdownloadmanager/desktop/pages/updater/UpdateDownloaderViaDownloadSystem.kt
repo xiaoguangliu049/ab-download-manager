@@ -4,7 +4,8 @@ import com.abdownloadmanager.UpdateDownloadLocationProvider
 import com.abdownloadmanager.updateapplier.UpdateDownloader
 import com.abdownloadmanager.updatechecker.UpdateSource
 import com.abdownloadmanager.shared.utils.DownloadSystem
-import ir.amirab.downloader.downloaditem.DownloadItem
+import ir.amirab.downloader.NewDownloadItemProps
+import ir.amirab.downloader.downloaditem.http.HttpDownloadItem
 import ir.amirab.downloader.downloaditem.EmptyContext
 import ir.amirab.downloader.utils.OnDuplicateStrategy
 import kotlinx.coroutines.async
@@ -26,13 +27,17 @@ class UpdateDownloaderViaDownloadSystem(
         val requireRestartDownload = pausedDownload?.getFullPath()?.exists()?.not() ?: false
         val id = pausedDownload?.id
             ?: downloadSystem.addDownload(
-                downloadItem = DownloadItem(
-                    id = -1,
-                    link = updateDirectDownloadLink.link,
-                    folder = updateDownloadsFolder,
-                    name = updateDirectDownloadLink.name,
+                newDownload = NewDownloadItemProps(
+                    downloadItem = HttpDownloadItem(
+                        id = -1,
+                        link = updateDirectDownloadLink.link,
+                        folder = updateDownloadsFolder,
+                        name = updateDirectDownloadLink.name,
+                    ),
+                    onDuplicateStrategy = OnDuplicateStrategy.AddNumbered,
+                    extraConfig = null,
+                    context = EmptyContext,
                 ),
-                onDuplicateStrategy = OnDuplicateStrategy.AddNumbered,
                 queueId = null,
                 categoryId = null,
             )

@@ -1,21 +1,19 @@
 package ir.amirab.downloader
 
-import ir.amirab.downloader.connection.DownloaderClient
+import arrow.core.Some
 import ir.amirab.downloader.db.IDownloadListDb
 import ir.amirab.downloader.db.IDownloadPartListDb
 import ir.amirab.downloader.downloaditem.*
 import ir.amirab.downloader.downloaditem.contexts.DuplicateRemoval
 import ir.amirab.downloader.downloaditem.contexts.RemovedBy
-import ir.amirab.downloader.part.Part
+import ir.amirab.downloader.downloaditem.DownloadJobStatus
+import ir.amirab.downloader.downloaditem.DownloadStatus
 import ir.amirab.downloader.utils.DuplicateFilterByPath
 import ir.amirab.downloader.utils.EmptyFileCreator
 import ir.amirab.downloader.utils.FileNameUtil
-import ir.amirab.downloader.utils.IDiskStat
-import ir.amirab.downloader.utils.OnDuplicateStrategy
 import ir.amirab.downloader.utils.OnDuplicateStrategy.*
 import ir.amirab.util.FileNameValidator
 import ir.amirab.util.PathValidator
-import ir.amirab.util.UrlUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
@@ -33,9 +31,9 @@ class DownloadManager(
     val dlListDb: IDownloadListDb,
     val partListDb: IDownloadPartListDb,
     val settings: DownloadSettings,
-    val diskStat: IDiskStat,
     val emptyFileCreator: EmptyFileCreator,
-    val client: DownloaderClient,
+    private val downloaderRegistry: DownloaderRegistry,
+    val downloadDataFolder: File
 ) : DownloadManagerMinimalControl {
 
     val scope = CoroutineScope(SupervisorJob())
@@ -70,15 +68,13 @@ class DownloadManager(
     private val dbAddSync = Mutex()
 
     suspend fun addDownload(
-        newItem: DownloadItem,
-        onDuplicateStrategy: OnDuplicateStrategy,
-        context: DownloadItemContext = EmptyContext,
+        props: NewDownloadItemProps
     ): Long {
-
-        //make sure url is valid
-        require(UrlUtils.isValidUrl(newItem.link)) {
-            "url is not valid"
-        }
+        val newItem = props.downloadItem
+        val onDuplicateStrategy = props.onDuplicateStrategy
+        val context = props.context
+        val extraConfig = props.extraConfig
+        newItem.validateItem()
         require(PathValidator.isValidPath(newItem.folder)) { "folder of new download is not valid: ${newItem.folder}" }
         require(PathValidator.canWriteToThisPath(newItem.folder)) { "can't write to this new download's folder: ${newItem.folder}" }
         require(FileNameValidator.isValidFileName(newItem.name)) { "name of new download is not valid: ${newItem.name}" }
@@ -87,7 +83,7 @@ class DownloadManager(
             val allDownloads = dlListDb.getAll()
             val duplicateFinder = DuplicateFilterByPath(File(newItem.folder, newItem.name))
             val foundItems = allDownloads.filter(duplicateFinder::isDuplicate)
-            var removedItems = emptyList<DownloadItem>()
+            var removedItems = emptyList<IDownloadItem>()
             if (foundItems.isNotEmpty()) {
                 when (onDuplicateStrategy) {
                     AddNumbered -> {
@@ -119,16 +115,26 @@ class DownloadManager(
             }.name
 
             val id = dlListDb.getLastId() + 1
+            val dateAdded = newItem.dateAdded
+                .takeIf { it != 0L }
+                ?: System.currentTimeMillis()
+
             val downloadItem = newItem.copy(
-                id = id,
-                name = name,
-                dateAdded = System.currentTimeMillis(),
-                startTime = null,
-                completeTime = null,
-                status = DownloadStatus.Added
+                id = Some(id),
+                name = Some(name),
+                dateAdded = Some(dateAdded),
+                startTime = Some(null),
+                completeTime = Some(null),
+                status = Some(DownloadStatus.Added)
             )
             dlListDb.add(downloadItem)
-            createJob(downloadItem).apply { boot() }
+            createJob(downloadItem)
+                .apply { boot() }
+                .apply {
+                    extraConfig?.let {
+                        extraConfigsReceived(it)
+                    }
+                }
         }
         contextContainer.setContext(job.id, context)
         onDownloadAdded(job.downloadItem)
@@ -138,8 +144,11 @@ class DownloadManager(
     }
 
     private val jobModificationLock = Any()
-    private fun createJob(downloadItem: DownloadItem): DownloadJob {
-        val job = DownloadJob(downloadItem, this, client)
+    private fun createJob(downloadItem: IDownloadItem): DownloadJob {
+        val job = downloaderRegistry.createJob(
+            downloadItem,
+            this,
+        )
 //        thisLogger().info("download job for $id created")
         downloadJobs = downloadJobs + job
         return job
@@ -147,7 +156,7 @@ class DownloadManager(
 
     suspend fun deleteDownload(
         id: Long,
-        alsoRemoveFile: (DownloadItem) -> Boolean,
+        alsoRemoveFile: (IDownloadItem) -> Boolean,
         context: DownloadItemContext = EmptyContext,
     ) {
         kotlin.runCatching { pause(id) }
@@ -231,15 +240,11 @@ class DownloadManager(
         }
     }
 
-    suspend fun getDownloadList(): List<DownloadItem> {
+    suspend fun getDownloadList(): List<IDownloadItem> {
         return dlListDb.getAll()
     }
 
-    fun getParts(id: Long): List<Part>? {
-        return getDownloadJob(id)?.getParts()
-    }
-
-    fun onDownloadResuming(downloadItem: DownloadItem) {
+    fun onDownloadResuming(downloadItem: IDownloadItem) {
         listOfJobsEvents.tryEmit(
             DownloadManagerEvents.OnJobStarting(
                 downloadItem,
@@ -248,7 +253,7 @@ class DownloadManager(
         )
     }
 
-    fun onDownloadResumed(downloadItem: DownloadItem) {
+    fun onDownloadResumed(downloadItem: IDownloadItem) {
         listOfJobsEvents.tryEmit(
             DownloadManagerEvents.OnJobStarted(
                 downloadItem,
@@ -257,7 +262,7 @@ class DownloadManager(
         )
     }
 
-    fun onDownloadAdded(downloadItem: DownloadItem) {
+    fun onDownloadAdded(downloadItem: IDownloadItem) {
         listOfJobsEvents.tryEmit(
             DownloadManagerEvents.OnJobAdded(
                 downloadItem,
@@ -266,7 +271,7 @@ class DownloadManager(
         )
     }
 
-    fun onDownloadCanceled(downloadItem: DownloadItem, throwable: Throwable) {
+    fun onDownloadCanceled(downloadItem: IDownloadItem, throwable: Throwable) {
         listOfJobsEvents.tryEmit(
             DownloadManagerEvents.OnJobCanceled(
                 downloadItem,
@@ -275,7 +280,7 @@ class DownloadManager(
         )
     }
 
-    fun onDownloadFinished(downloadItem: DownloadItem) {
+    fun onDownloadFinished(downloadItem: IDownloadItem) {
         scope.launch {
             listOfJobsEvents.tryEmit(
                 DownloadManagerEvents.OnJobCompleted(
@@ -287,7 +292,7 @@ class DownloadManager(
         }
     }
 
-    fun onDownloadItemChange(downloadItem: DownloadItem) {
+    fun onDownloadItemChange(downloadItem: IDownloadItem) {
         scope.launch {
             listOfJobsEvents.tryEmit(
                 DownloadManagerEvents.OnJobChanged(
@@ -331,7 +336,7 @@ class DownloadManager(
         }.size
     }
 
-    fun calculateOutputFile(downloadItem: DownloadItem): File {
+    fun calculateOutputFile(downloadItem: IDownloadItem): File {
         return File(downloadItem.folder, downloadItem.name)
     }
 
@@ -352,11 +357,15 @@ class DownloadManager(
 
     fun reloadSetting() {
         for (downloadJob in downloadJobs) {
-            downloadJob.onPreferredConnectionCountChanged()
+            downloadJob.reloadSettings()
         }
     }
 
-    suspend fun updateDownloadItem(id: Long, updater: (DownloadItem) -> Unit) {
+    suspend fun updateDownloadItem(
+        id: Long,
+        downloadJobExtraConfig: DownloadJobExtraConfig?,
+        updater: (IDownloadItem) -> Unit,
+    ) {
         var wasCreated = false
         val job = getDownloadJob(id) ?: run {
             dlListDb.getById(id)?.let {
@@ -364,7 +373,7 @@ class DownloadManager(
                 createJob(it)
             }
         } ?: return
-        val updated = job.changeConfig(updater)
+        val updated = job.changeConfig(updater, downloadJobExtraConfig)
         if (wasCreated && updated.status == DownloadStatus.Completed) {
             deleteJob(job.id)
         }

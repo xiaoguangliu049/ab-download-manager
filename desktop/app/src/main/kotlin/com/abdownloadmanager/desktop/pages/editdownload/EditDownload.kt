@@ -15,7 +15,6 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,11 +36,14 @@ import com.abdownloadmanager.shared.utils.ui.theme.LocalUiScale
 import ir.amirab.util.ifThen
 import com.abdownloadmanager.shared.utils.mvi.HandleEffects
 import com.abdownloadmanager.resources.Res
+import com.abdownloadmanager.shared.downloaderinui.edit.CanEditDownloadResult
+import com.abdownloadmanager.shared.downloaderinui.edit.CanEditWarnings
+import com.abdownloadmanager.shared.downloaderinui.edit.EditDownloadInputs
+import com.abdownloadmanager.shared.downloaderinui.edit.TAEditDownloadInputs
 import com.abdownloadmanager.shared.utils.FileIconProvider
-import com.abdownloadmanager.shared.utils.LocalSizeUnit
-import com.abdownloadmanager.shared.utils.convertPositiveSizeToHumanReadable
 import com.abdownloadmanager.shared.utils.ui.WithContentColor
 import com.abdownloadmanager.shared.utils.div
+import com.abdownloadmanager.shared.utils.ui.theme.myShapes
 import ir.amirab.util.URLOpener
 import ir.amirab.util.compose.resources.myStringResource
 import ir.amirab.util.compose.asStringSource
@@ -147,7 +149,7 @@ fun EditDownloadPage(
                     onDismiss = {
                         editDownloadUiChecker.setShowMoreSettings(false)
                     },
-                    configurables = editDownloadUiChecker.configurables,
+                    configurables = editDownloadUiChecker.configurableList,
                 )
             }
         }
@@ -157,7 +159,7 @@ fun EditDownloadPage(
 @Composable
 fun BrowserImportButton(
     component: EditDownloadComponent,
-    downloadUiState: EditDownloadState,
+    downloadUiState: EditDownloadInputs<*, *, *, *, *>,
 ) {
     val credentialsImportedFromExternal by component.credentialsImportedFromExternal.collectAsState()
     val downloadPage = downloadUiState.currentDownloadItem.collectAsState().value.downloadPage
@@ -206,7 +208,7 @@ fun BrowserImportButton(
 
 @Composable
 private fun RenderResumeSupport(
-    editDownloadUiChecker: EditDownloadState,
+    editDownloadUiChecker: TAEditDownloadInputs,
 ) {
     val fileInfo by editDownloadUiChecker.responseInfo.collectAsState()
     Row(
@@ -293,7 +295,7 @@ private fun PrimaryMainConfigActionButton(
 
 @Composable
 fun ConfigActionsButtons(
-    editDownloadUiChecker: EditDownloadState,
+    editDownloadUiChecker: TAEditDownloadInputs,
 ) {
     val showMoreSettings by editDownloadUiChecker.showMoreSettings.collectAsState()
     val requiresAuth = editDownloadUiChecker.responseInfo.collectAsState().value?.requireBasicAuth ?: false
@@ -316,7 +318,7 @@ fun ConfigActionsButtons(
 @Composable
 private fun MainActionButtons(
     component: EditDownloadComponent,
-    editDownloadUiChecker: EditDownloadState,
+    editDownloadUiChecker: TAEditDownloadInputs,
 ) {
     Row {
         val canEditResult by editDownloadUiChecker.canEditDownloadResult.collectAsState()
@@ -384,7 +386,7 @@ fun WarningPrompt(
         ),
         onDismissRequest = onClose
     ) {
-        val shape = RoundedCornerShape(6.dp)
+        val shape = myShapes.defaultRounded
         Box(
             Modifier
                 .padding(vertical = 4.dp)
@@ -427,7 +429,7 @@ fun WarningPrompt(
 @Composable
 private fun RenderFileTypeAndSize(
     iconProvider: FileIconProvider,
-    editDownloadUiChecker: EditDownloadState,
+    editDownloadUiChecker: TAEditDownloadInputs,
 ) {
     val isLinkLoading by editDownloadUiChecker.isLinkLoading.collectAsState()
     val fileInfo by editDownloadUiChecker.responseInfo.collectAsState()
@@ -464,12 +466,8 @@ private fun RenderFileTypeAndSize(
                                     null,
                                     iconModifier
                                 )
-                                val size = fileInfo.totalLength?.let {
-                                    convertPositiveSizeToHumanReadable(it, LocalSizeUnit.current)
-                                }.takeIf {
-                                    // this is a length of a html page (error)
-                                    fileInfo.isSuccessFul
-                                } ?: Res.string.unknown.asStringSource()
+
+                                val size by editDownloadUiChecker.lengthStringFlow.collectAsState()
                                 Spacer(Modifier.width(8.dp))
                                 Text(
                                     size.rememberString(),
@@ -556,8 +554,8 @@ private fun AddDownloadPageTextField(
     placeHolder: String,
     modifier: Modifier,
     errorText: String? = null,
-    start: @Composable() (() -> Unit)? = null,
-    end: @Composable() (() -> Unit)? = null,
+    start: @Composable (() -> Unit)? = null,
+    end: @Composable (() -> Unit)? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -575,7 +573,7 @@ private fun AddDownloadPageTextField(
             modifier = Modifier.fillMaxWidth(),
             background = myColors.surface / 50,
             interactionSource = interactionSource,
-            shape = RoundedCornerShape(6.dp),
+            shape = myShapes.defaultRounded,
             start = start?.let {
                 {
                     WithContentAlpha(0.5f) {

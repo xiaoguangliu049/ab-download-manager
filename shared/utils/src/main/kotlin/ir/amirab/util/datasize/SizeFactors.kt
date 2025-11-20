@@ -37,7 +37,7 @@ sealed class SizeFactors(
         }
         // we need lowest
         if (value == 0L) {
-            acceptedFactors.first()
+            return acceptedFactors.first()
         }
         // no other choice
         if (acceptedFactors.size == 1) return acceptedFactors.first()
@@ -64,23 +64,9 @@ sealed class SizeFactors(
     }
 
     abstract fun toString(factorValue: FactorValue): String
+    abstract fun toLongString(factorValue: FactorValue): String
 
     data object DecimalSizeFactors : SizeFactors(baseValue = 1000) {
-        override fun toString(factorValue: FactorValue): String {
-            return when (factorValue) {
-                FactorValue.None -> ""
-                FactorValue.Kilo -> "k"
-                FactorValue.Mega -> "m"
-                FactorValue.Giga -> "g"
-                FactorValue.Tera -> "t"
-//                FactorValue.Peta -> "p"
-//                FactorValue.Exa -> "e"
-            }
-        }
-
-    }
-
-    data object BinarySizeFactors : SizeFactors(baseValue = 1024) {
         override fun toString(factorValue: FactorValue): String {
             return when (factorValue) {
                 FactorValue.None -> ""
@@ -90,6 +76,45 @@ sealed class SizeFactors(
                 FactorValue.Tera -> "T"
 //                FactorValue.Peta -> "P"
 //                FactorValue.Exa -> "E"
+            }
+        }
+
+        override fun toLongString(factorValue: FactorValue): String {
+            return when (factorValue) {
+                FactorValue.None -> ""
+                FactorValue.Kilo -> "Kilo"
+                FactorValue.Mega -> "Mega"
+                FactorValue.Giga -> "Giga"
+                FactorValue.Tera -> "Tera"
+//                FactorValue.Peta -> "Peta"
+//                FactorValue.Exa -> "Exa"
+            }
+        }
+
+    }
+
+    data object BinarySizeFactors : SizeFactors(baseValue = 1024) {
+        override fun toString(factorValue: FactorValue): String {
+            return when (factorValue) {
+                FactorValue.None -> ""
+                FactorValue.Kilo -> "Ki"
+                FactorValue.Mega -> "Mi"
+                FactorValue.Giga -> "Gi"
+                FactorValue.Tera -> "Ti"
+//                FactorValue.Peta -> "Pi"
+//                FactorValue.Exa -> "Ei"
+            }
+        }
+
+        override fun toLongString(factorValue: FactorValue): String {
+            return when (factorValue) {
+                FactorValue.None -> ""
+                FactorValue.Kilo -> "Kibi"
+                FactorValue.Mega -> "Mebi"
+                FactorValue.Giga -> "Gibi"
+                FactorValue.Tera -> "Tebi"
+//                FactorValue.Peta -> "Pebi"
+//                FactorValue.Exa -> "Exbi"
             }
         }
     }

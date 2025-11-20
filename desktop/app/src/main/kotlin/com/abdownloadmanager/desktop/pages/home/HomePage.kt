@@ -20,6 +20,9 @@ import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.awtTransferable
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalDensity
@@ -52,6 +55,7 @@ import com.abdownloadmanager.shared.utils.ui.WithContentAlpha
 import com.abdownloadmanager.shared.utils.ui.WithTitleBarDirection
 import com.abdownloadmanager.shared.utils.ui.icon.MyIcons
 import com.abdownloadmanager.shared.utils.ui.myColors
+import com.abdownloadmanager.shared.utils.ui.theme.myShapes
 import com.abdownloadmanager.shared.utils.ui.theme.myTextSizes
 import com.abdownloadmanager.shared.utils.ui.widget.MyIcon
 import ir.amirab.util.compose.IconSource
@@ -299,7 +303,7 @@ fun HomePage(component: HomeComponent) {
                     ) {
                         Spacer(Modifier.size(4.dp))
                         AddUrlButton {
-                            component.requestAddNewDownload()
+                            component.requestEnterNewURL()
                         }
                         Actions(
                             component.headerActions,
@@ -387,7 +391,7 @@ private fun ShowDeletePrompts(
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(6.dp)
+    val shape = myShapes.defaultRounded
     Dialog(onDismissRequest = onCancel) {
         Column(
             Modifier
@@ -446,18 +450,28 @@ private fun ShowDeletePrompts(
             )
             if (deletePromptState.hasFinishedDownloads) {
                 Spacer(Modifier.height(12.dp))
+                val alsoDeleteFileInteractionSource = remember { MutableInteractionSource() }
                 Row(
-                    Modifier.clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        deletePromptState.alsoDeleteFile = !deletePromptState.alsoDeleteFile
-                    },
+                    Modifier
+                        .clickable(
+                            interactionSource = alsoDeleteFileInteractionSource,
+                            indication = null
+                        ) {
+                            deletePromptState.alsoDeleteFile = !deletePromptState.alsoDeleteFile
+                        },
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    CheckBox(deletePromptState.alsoDeleteFile, {
-                        deletePromptState.alsoDeleteFile = it
-                    })
+                    CheckBox(
+                        value = deletePromptState.alsoDeleteFile,
+                        onValueChange = {
+                            deletePromptState.alsoDeleteFile = it
+                        },
+                        modifier = Modifier
+                            // the Row itself is clickable (focusable) so we don't need to focus this checkbox
+                            // is there a better way?
+                            .focusProperties { canFocus = false },
+                        interactionSource = alsoDeleteFileInteractionSource,
+                    )
                     Spacer(Modifier.width(8.dp))
                     Text(
                         myStringResource(Res.string.also_delete_file_from_disk),
@@ -471,12 +485,17 @@ private fun ShowDeletePrompts(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val confirmFocusRequester = remember { FocusRequester() }
+                LaunchedEffect(Unit) {
+                    confirmFocusRequester.requestFocus()
+                }
                 Spacer(Modifier.weight(1f))
                 ActionButton(
                     text = myStringResource(Res.string.delete),
                     onClick = onConfirm,
-                    borderColor = SolidColor(myColors.error),
+                    focusedBorderColor = SolidColor(myColors.error),
                     contentColor = myColors.error,
+                    modifier = Modifier.focusRequester(confirmFocusRequester)
                 )
                 Spacer(Modifier.width(8.dp))
                 ActionButton(text = myStringResource(Res.string.cancel), onClick = onCancel)
@@ -491,7 +510,7 @@ private fun ShowConfirmPrompt(
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(6.dp)
+    val shape = myShapes.defaultRounded
     Dialog(onDismissRequest = onCancel) {
         Column(
             Modifier
@@ -526,11 +545,15 @@ private fun ShowConfirmPrompt(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val confirmFocusRequester = remember { FocusRequester() }
+                LaunchedEffect(Unit) {
+                    confirmFocusRequester.requestFocus()
+                }
                 Spacer(Modifier.weight(1f))
                 ActionButton(
                     text = myStringResource(Res.string.ok),
                     onClick = onConfirm,
-                    contentColor = myColors.error,
+                    modifier = Modifier.focusRequester(confirmFocusRequester)
                 )
                 Spacer(Modifier.width(8.dp))
                 ActionButton(text = myStringResource(Res.string.cancel), onClick = onCancel)
@@ -545,7 +568,7 @@ private fun ShowDeleteCategoryPrompt(
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(6.dp)
+    val shape = myShapes.defaultRounded
     Dialog(onDismissRequest = onCancel) {
         Column(
             Modifier
@@ -596,11 +619,16 @@ private fun ShowDeleteCategoryPrompt(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                val confirmFocusRequester = remember { FocusRequester() }
+                LaunchedEffect(Unit) {
+                    confirmFocusRequester.requestFocus()
+                }
                 Spacer(Modifier.weight(1f))
                 ActionButton(
                     text = myStringResource(Res.string.delete),
                     onClick = onConfirm,
-                    borderColor = SolidColor(myColors.error),
+                    focusedBorderColor = SolidColor(myColors.error),
+                    modifier = Modifier.focusRequester(confirmFocusRequester),
                     contentColor = myColors.error,
                 )
                 Spacer(Modifier.width(8.dp))
@@ -701,7 +729,7 @@ private fun Categories(
     val currentTypeFilter = component.filterState.typeCategoryFilter
     val currentStatusFilter = component.filterState.statusFilter
     val categories by component.categoryManager.categoriesFlow.collectAsState()
-    val clipShape = RoundedCornerShape(6.dp)
+    val clipShape = myShapes.defaultRounded
     val showCategoryOption by component.categoryActions.collectAsState()
 
     fun showCategoryOption(item: Category?) {

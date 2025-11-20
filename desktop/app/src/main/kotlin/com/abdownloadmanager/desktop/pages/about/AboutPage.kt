@@ -37,8 +37,9 @@ import com.abdownloadmanager.shared.utils.div
 import com.abdownloadmanager.resources.Res
 import com.abdownloadmanager.shared.ui.widget.ActionButton
 import com.abdownloadmanager.shared.utils.ui.LocalContentColor
+import com.abdownloadmanager.shared.utils.ui.theme.myShapes
 import ir.amirab.util.URLOpener
-import ir.amirab.util.UrlUtils
+import ir.amirab.util.HttpUrlUtils
 import ir.amirab.util.compose.IconSource
 import ir.amirab.util.compose.StringSource
 import ir.amirab.util.compose.asStringSource
@@ -148,7 +149,7 @@ private fun RenderAppInfo(
                 Spacer(Modifier.height(8.dp))
                 val websiteUrl = SharedConstants.projectWebsite
                 val websiteDisplayName = remember(websiteUrl) {
-                    UrlUtils.getHost(websiteUrl) ?: websiteUrl
+                    HttpUrlUtils.getHost(websiteUrl) ?: websiteUrl
                 }
                 LinkText(
                     text = websiteDisplayName,
@@ -303,7 +304,7 @@ private fun AboutPageListItemButton(
     description: StringSource,
     onClick: () -> Unit,
 ) {
-    val shape = RoundedCornerShape(6.dp)
+    val shape = myShapes.defaultRounded
     Row(
         modifier
             .border(1.dp, myColors.onBackground / 0.15f, shape)

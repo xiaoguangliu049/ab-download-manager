@@ -1,15 +1,35 @@
 package com.abdownloadmanager.integration
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 
 @Serializable
-data class DownloadCredentialsFromIntegration(
-    val link: String,
+sealed interface IDownloadCredentialsFromIntegration {
+    val link: String
+    val downloadPage: String?
+
+    val suggestedName: String?
+}
+
+@SerialName("http")
+@Serializable
+data class HttpDownloadCredentialsFromIntegration(
+    override val link: String,
     val headers: Map<String, String>? = null,
-    val downloadPage: String? = null,
-)
+    override val downloadPage: String? = null,
+    override val suggestedName: String? = null,
+) : IDownloadCredentialsFromIntegration
+
+@SerialName("hls")
+@Serializable
+data class HLSDownloadCredentialsFromIntegration(
+    override val link: String,
+    val headers: Map<String, String>? = null,
+    override val downloadPage: String? = null,
+    override val suggestedName: String? = null,
+) : IDownloadCredentialsFromIntegration
 
 @Serializable
 data class AddDownloadOptionsFromIntegration(
@@ -19,18 +39,18 @@ data class AddDownloadOptionsFromIntegration(
 
 @Serializable
 data class AddDownloadsFromIntegration(
-    val items: List<DownloadCredentialsFromIntegration>,
+    val items: List<IDownloadCredentialsFromIntegration>,
     val options: AddDownloadOptionsFromIntegration = AddDownloadOptionsFromIntegration()
 ) {
     companion object {
         fun createFromRequest(json: Json, jsonData: String): AddDownloadsFromIntegration {
             return try {
                 json.decodeFromString<AddDownloadsFromIntegration>(jsonData)
-            } catch (e: SerializationException) {
-                // TODO remove it after a while!!!
+            } catch (_: SerializationException) {
+                // TODO Remove this after a while
                 AddDownloadsFromIntegration(
-                    items = json.decodeFromString<List<DownloadCredentialsFromIntegration>>(jsonData),
-                    options = AddDownloadOptionsFromIntegration(
+                    items = json.decodeFromString<List<HttpDownloadCredentialsFromIntegration>>(jsonData),
+                    AddDownloadOptionsFromIntegration(
                         silentAdd = false,
                         silentStart = false,
                     )

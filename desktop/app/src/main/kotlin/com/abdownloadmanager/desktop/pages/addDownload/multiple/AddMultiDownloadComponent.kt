@@ -1,7 +1,6 @@
 package com.abdownloadmanager.desktop.pages.addDownload.multiple
 
 import com.abdownloadmanager.desktop.pages.addDownload.AddDownloadComponent
-import com.abdownloadmanager.desktop.pages.addDownload.DownloadUiChecker
 import com.abdownloadmanager.desktop.repository.AppRepository
 import com.abdownloadmanager.shared.ui.widget.customtable.TableState
 import com.abdownloadmanager.shared.utils.DownloadSystem
@@ -9,15 +8,21 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import arrow.core.Some
+import com.abdownloadmanager.desktop.pages.addDownload.AddDownloadCredentialsInUiProps
+import com.abdownloadmanager.shared.downloaderinui.DownloaderInUiRegistry
+import com.abdownloadmanager.shared.downloaderinui.add.TANewDownloadInputs
+import com.abdownloadmanager.shared.ui.configurable.Configurable
 import com.abdownloadmanager.shared.utils.FileIconProvider
 import com.abdownloadmanager.shared.utils.category.Category
 import com.abdownloadmanager.shared.utils.category.CategoryItem
 import com.abdownloadmanager.shared.utils.category.CategoryManager
 import com.abdownloadmanager.shared.utils.category.CategorySelectionMode
+import com.abdownloadmanager.shared.utils.perhostsettings.PerHostSettingsManager
+import com.abdownloadmanager.shared.utils.perhostsettings.getSettingsForURL
 import com.arkivanov.decompose.ComponentContext
-import ir.amirab.downloader.connection.DownloaderClient
-import ir.amirab.downloader.downloaditem.DownloadCredentials
-import ir.amirab.downloader.downloaditem.DownloadItem
+import ir.amirab.downloader.NewDownloadItemProps
+import ir.amirab.downloader.downloaditem.EmptyContext
 import ir.amirab.downloader.queue.QueueManager
 import ir.amirab.downloader.utils.OnDuplicateStrategy
 import kotlinx.coroutines.Deferred
@@ -43,7 +48,7 @@ class AddMultiDownloadComponent(
         )
     )
     private val appSettings by inject<AppRepository>()
-    private val client by inject<DownloaderClient>()
+    private val perHostSettingsManager by inject<PerHostSettingsManager>()
     val downloadSystem by inject<DownloadSystem>()
     val fileIconProvider: FileIconProvider by inject()
 
@@ -87,31 +92,47 @@ class AddMultiDownloadComponent(
         onRequestAddCategory()
     }
 
-    private fun newChecker(iDownloadCredentials: DownloadCredentials) = DownloadUiChecker(
-        initialCredentials = iDownloadCredentials,
-        initialName = "",
-        initialFolder = folder.value,
-        downloaderClient = client,
-        downloadSystem = downloadSystem,
-        scope = scope,
-    )
+    val downloaderInUiRegistry: DownloaderInUiRegistry by inject()
 
-    fun addItems(list: List<DownloadCredentials>) {
+    private fun newCheckerWithInputs(
+        addDownloadCredentialsInUiProps: AddDownloadCredentialsInUiProps
+    ): TANewDownloadInputs? {
+        val iDownloadCredentials = addDownloadCredentialsInUiProps.credentials
+        return downloaderInUiRegistry
+            .getDownloaderOf(iDownloadCredentials)
+            ?.createNewDownloadInputs(
+                initialCredentials = iDownloadCredentials,
+                initialName = addDownloadCredentialsInUiProps.extraConfig.getAndFixSuggestedName().orEmpty(),
+                initialFolder = folder.value,
+                downloadSystem = downloadSystem,
+                scope = scope,
+            )
+    }
+
+    fun addItems(list: List<AddDownloadCredentialsInUiProps>) {
         val newItemsToAdd = list.filter {
-            it !in this.list.map {
+            it.credentials !in this.list.map {
                 it.credentials.value
             }
-        }.map {
-            newChecker(it)
+        }.mapNotNull {
+            newCheckerWithInputs(it)
+                ?.also { inputComponent ->
+                    val perHostSettingsItem = perHostSettingsManager
+                        .getSettingsForURL(it.credentials.link)
+                    perHostSettingsItem?.let {
+                        inputComponent
+                            .applyHostSettingsToExtraConfig(perHostSettingsItem)
+                    }
+                }
         }
         enqueueCheck(newItemsToAdd)
         this.list = this.list.plus(newItemsToAdd)
     }
 
-    var list: List<DownloadUiChecker> by mutableStateOf(emptyList())
+    var list: List<TANewDownloadInputs> by mutableStateOf(emptyList())
 
-    private val checkList = MutableSharedFlow<DownloadUiChecker>()
-    private fun enqueueCheck(links: List<DownloadUiChecker>) {
+    private val checkList = MutableSharedFlow<TANewDownloadInputs>()
+    private fun enqueueCheck(links: List<TANewDownloadInputs>) {
         scope.launch {
             for (i in links) {
                 checkList.emit(i)
@@ -121,13 +142,13 @@ class AddMultiDownloadComponent(
 
     init {
         checkList.onEach {
-            it.refresh()
+            it.downloadUiChecker.refresh()
         }
             .launchIn(scope)
     }
 
     var selectionList by mutableStateOf<List<String>>(emptyList())
-    fun isSelected(item: DownloadUiChecker): Boolean {
+    fun isSelected(item: TANewDownloadInputs): Boolean {
         return item.credentials.value.link in selectionList
     }
 
@@ -210,28 +231,31 @@ class AddMultiDownloadComponent(
         val itemsToAdd = list
             .filter { it.credentials.value.link in selectionList }
             .filter {
-                it.canAdd.value
-                        || it.isDuplicate.value // we add numbered file strategy
+                val checker = it.downloadUiChecker
+                checker.canAdd.value
+                        || checker.isDuplicate.value // we add numbered file strategy
             }
             .map {
-                DownloadItem(
-                    id = -1,
-                    folder = getFolderForItem(
-                        categorySelectionMode = categorySelectionMode,
-                        url = it.credentials.value.link,
-                        fleName = it.name.value,
-                        defaultFolder = it.folder.value,
-                        allInSameLocation = allInSameLocation.value
+                NewDownloadItemProps(
+                    downloadItem = it.downloadItem.value.copy(
+                        folder = Some(
+                            getFolderForItem(
+                                categorySelectionMode = categorySelectionMode,
+                                url = it.credentials.value.link,
+                                fleName = it.name.value,
+                                defaultFolder = it.folder.value,
+                                allInSameLocation = allInSameLocation.value
+                            )
+                        )
                     ),
-                    name = it.name.value,
-                    link = it.credentials.value.link,
-                    contentLength = it.length.value ?: -1,
+                    extraConfig = it.downloadJobConfig.value,
+                    onDuplicateStrategy = OnDuplicateStrategy.AddNumbered,
+                    context = EmptyContext,
                 )
             }
         consumeDialog {
             onRequestAdd(
                 items = itemsToAdd,
-                onDuplicateStrategy = { OnDuplicateStrategy.AddNumbered },
                 queueId = queueId,
                 categorySelectionMode = categorySelectionMode
             ).invokeOnCompletion {
@@ -252,6 +276,20 @@ class AddMultiDownloadComponent(
     var showAddToQueue by mutableStateOf(false)
         private set
 
+    fun getIdOf(item: TANewDownloadInputs): Int {
+        return item.getUniqueId()
+    }
+
+    fun openConfigurableList(
+        itemID: Int?
+    ) {
+        currentDownloadConfigurableList.value = itemID?.let { id ->
+            list.find { getIdOf(it) == id }
+        }?.configurableList
+    }
+
+    val currentDownloadConfigurableList: MutableStateFlow<List<Configurable<*>>?> = MutableStateFlow(null)
+
     fun openAddToQueueDialog() {
         showAddToQueue = true
     }
@@ -267,8 +305,7 @@ class AddMultiDownloadComponent(
 
 fun interface OnRequestAdd {
     operator fun invoke(
-        items: List<DownloadItem>,
-        onDuplicateStrategy: (DownloadItem) -> OnDuplicateStrategy,
+        items: List<NewDownloadItemProps>,
         queueId: Long?,
         categorySelectionMode: CategorySelectionMode?,
     ): Deferred<List<Long>>

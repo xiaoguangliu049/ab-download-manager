@@ -3,16 +3,18 @@ package com.abdownloadmanager.shared.utils.ui
 import androidx.compose.ui.graphics.vector.ImageVector
 import ir.amirab.util.compose.IconSource
 
-context (IMyIcons)
+context (_: IMyIcons)
 fun ImageVector.asIconSource(requiredTint: Boolean = true) = IconSource.VectorIconSource(this, requiredTint)
 
-context (IMyIcons)
+context (_: IMyIcons)
 fun String.asIconSource(requiredTint: Boolean = true) = IconSource.ResourceIconSource(this, requiredTint)
 
 interface IMyIcons {
     val appIcon: IconSource
 
     val settings: IconSource
+    val flag: IconSource
+    val fast: IconSource
     val search: IconSource
     val info: IconSource
     val check: IconSource
@@ -72,6 +74,7 @@ interface IMyIcons {
     val otherFile: IconSource
     val lock: IconSource
     val question: IconSource
+    val grip: IconSource
     val sortUp: IconSource
     val sortDown: IconSource
     val verticalDirection: IconSource

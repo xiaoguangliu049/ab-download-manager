@@ -1,63 +1,69 @@
 package ir.amirab.downloader.db
 
-import ir.amirab.downloader.downloaditem.DownloadItem
-import ir.amirab.downloader.utils.LockList
+import ir.amirab.downloader.downloaditem.IDownloadItem
 import ir.amirab.downloader.utils.SuspendLockList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicInteger
 
 class DownloadListFileStorage(
     private val downloadListFolder: File,
     private val fileSaver: TransactionalFileSaver,
 ) : IDownloadListDb {
 
+    private val fileLocks = SuspendLockList<Long>()
+
     fun getDownloadItemFile(id: Long): File {
         return downloadListFolder.resolve("$id.json")
     }
 
-    override suspend fun getAll(): List<DownloadItem> {
+    override suspend fun getAll(): List<IDownloadItem> {
         return withContext(Dispatchers.IO) {
-            downloadListFolder.listFiles()?.filter {
-                it.name.endsWith(".json")
-            }?.mapNotNull {
-                get(it)
-            }.orEmpty()
+            val jsonExtension = ".json"
+            downloadListFolder.listFiles()
+                ?.mapNotNull { file ->
+                    file.name
+                        .takeIf { it.endsWith(jsonExtension) }
+                        ?.removeSuffix(jsonExtension)
+                        ?.toLongOrNull()
+                        ?.let { get(file, it) }
+                }.orEmpty()
         }
     }
 
-    private fun get(file: File): DownloadItem? {
-        return fileSaver.readObject(file)
+    private suspend fun get(file: File, id: Long): IDownloadItem? {
+        return fileLocks.withLock(id) {
+            fileSaver.readObject(file)
+        }
     }
 
-    override suspend fun getById(id: Long): DownloadItem? {
+    override suspend fun getById(id: Long): IDownloadItem? {
         return withContext(Dispatchers.IO) {
-            get(getDownloadItemFile(id))
+            get(getDownloadItemFile(id), id)
         }
     }
 
     private val addLock = Mutex()
-    override suspend fun add(item: DownloadItem) {
+    override suspend fun add(item: IDownloadItem) {
         withContext(Dispatchers.IO) {
             addLock.withLock {
-                fileSaver.writeObject(getDownloadItemFile(item.id), item)
-                val lastId = getLastId()
-                if (lastId < item.id) {
-                    setLastId(item.id)
+                fileLocks.withLock(item.id) {
+                    fileSaver.writeObject(getDownloadItemFile(item.id), item)
+                    val lastId = getLastId()
+                    if (lastId < item.id) {
+                        setLastId(item.id)
+                    }
                 }
             }
         }
     }
 
-    private val updateLocks = SuspendLockList(DownloadItem::id)
-    override suspend fun update(item: DownloadItem) {
+    override suspend fun update(item: IDownloadItem) {
         withContext(Dispatchers.IO) {
             // we don't use same lock for all items , but create lock for each item
-            updateLocks.withLock(item) {
+            fileLocks.withLock(item.id) {
                 fileSaver.writeObject(getDownloadItemFile(item.id), item)
             }
         }
@@ -67,7 +73,7 @@ class DownloadListFileStorage(
         getDownloadItemFile(itemId).delete()
     }
 
-    override suspend fun remove(item: DownloadItem) {
+    override suspend fun remove(item: IDownloadItem) {
         removeById(item.id)
     }
 
@@ -91,11 +97,10 @@ class DownloadListFileStorage(
     private fun getLastIdFromFiles(): Long {
         return downloadListFolder.listFiles()!!.filter {
             it.name.endsWith(".json") && it.isFile
-        }.map {
-//                println(it.name)
-            it.name.substring(0, it.name.length - ".json".length).also {
-//                    println(it)
-            }.toLong()
-        }.maxOrNull() ?: -1L
+        }.maxOfOrNull {
+            it.name
+                .substring(0, it.name.length - ".json".length)
+                .toLong()
+        } ?: -1L
     }
 }

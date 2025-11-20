@@ -1,9 +1,9 @@
 package ir.amirab.downloader.destination
 
 import ir.amirab.downloader.anntation.HeavyCall
-import ir.amirab.downloader.part.Part
+import ir.amirab.downloader.part.DownloadPart
 import ir.amirab.downloader.utils.EmptyFileCreator
-import ir.amirab.util.atomicMove
+import ir.amirab.util.tryAtomicMove
 import okio.FileHandle
 import okio.FileSystem
 import okio.Path.Companion.toOkioPath
@@ -62,7 +62,7 @@ class SimpleDownloadDestination(
         removeFileHandle()
     }
 
-    override fun onAllPartsCompleted() {
+    override fun onAllPartsCompleted(onProgressUpdate: (Int?) -> Unit) {
         if (appendExtensionToIncompleteDownloads) {
             // this function maybe called at some point that we may not even start download yet.
             // for example when the download has already completed, the DownloadJob will call this function! so we should do nothing.
@@ -76,7 +76,7 @@ class SimpleDownloadDestination(
                 completeFile.delete()
             }
             try {
-                incompleteFile.atomicMove(completeFile)
+                incompleteFile.tryAtomicMove(completeFile)
             } catch (e: Exception) {
                 // prevent remove the part file if it can't be moved by us!
                 throw IllegalStateException(
@@ -86,23 +86,22 @@ class SimpleDownloadDestination(
             }
         }
         // clean up junk files called in the super class
-        super.onAllPartsCompleted()
+        super.onAllPartsCompleted(onProgressUpdate)
     }
 
     var outputSize: Long = -1
     override fun getWriterFor(
-        part: Part,
+        part: DownloadPart,
     ): DestWriter {
         if (!canGetFileWriter()) {
             throw IllegalStateException("First check then ask for...")
         }
         val outFile = fileToWrite
-        val returned = returnIfAlreadyHaveWriter(part.from)
+        val returned = returnIfAlreadyHaveWriter(part.getID())
         returned?.let { return it }
         val writer = DestWriter(
-            part.from,
+            part.getID(),
             outFile,
-            part.from,
             part.current,
             fileHandle,
         )
@@ -165,7 +164,7 @@ class SimpleDownloadDestination(
             val incompleteFile = incompleteFile
             if (incompleteFile.exists()) {
                 try {
-                    incompleteFile.atomicMove(IncompleteFileUtil.addIncompleteIndicator(to, downloadId))
+                    incompleteFile.tryAtomicMove(IncompleteFileUtil.addIncompleteIndicator(to, downloadId))
                 } catch (e: Exception) {
                     throw IllegalStateException(
                         "Failed to move .part file to the new destination: ${e.localizedMessage}",

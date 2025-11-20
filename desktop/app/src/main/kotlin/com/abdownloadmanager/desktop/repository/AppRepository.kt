@@ -1,18 +1,18 @@
 package com.abdownloadmanager.desktop.repository
 
-import ir.amirab.util.datasize.CommonSizeConvertConfigs
 import com.abdownloadmanager.desktop.storage.AppSettingsStorage
+import com.abdownloadmanager.desktop.storage.SupportedSizeUnits
 import com.abdownloadmanager.desktop.utils.AutoStartManager
 import com.abdownloadmanager.shared.utils.DownloadSystem
 import ir.amirab.downloader.DownloadSettings
 import com.abdownloadmanager.integration.Integration
 import com.abdownloadmanager.integration.IntegrationResult
+import com.abdownloadmanager.shared.util.SizeAndSpeedUnitProvider
 import com.abdownloadmanager.shared.utils.autoremove.RemovedDownloadsFromDiskTracker
 import com.abdownloadmanager.shared.utils.category.CategoryManager
 import com.abdownloadmanager.shared.utils.proxy.ProxyManager
 import ir.amirab.downloader.DownloadManager
 import ir.amirab.downloader.monitor.IDownloadMonitor
-import ir.amirab.util.datasize.BaseSize
 import ir.amirab.util.datasize.ConvertSizeConfig
 import ir.amirab.util.flow.mapStateFlow
 import ir.amirab.util.flow.withPrevious
@@ -21,7 +21,9 @@ import kotlinx.coroutines.flow.*
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
-class AppRepository : KoinComponent {
+class AppRepository :
+    KoinComponent,
+    SizeAndSpeedUnitProvider {
     private val scope: CoroutineScope by inject()
     private val appSettings: AppSettingsStorage by inject()
     private val proxyManager: ProxyManager by inject()
@@ -48,19 +50,24 @@ class AppRepository : KoinComponent {
     val integrationEnabled = appSettings.browserIntegrationEnabled
     val integrationPort = appSettings.browserIntegrationPort
     val trackDeletedFilesOnDisk = appSettings.trackDeletedFilesOnDisk
-    val sizeUnit = MutableStateFlow(
-        CommonSizeConvertConfigs.BinaryBytes
-    )
-    val speedUnit = appSettings.useBitsForSpeed.mapStateFlow { useBits ->
-        if (useBits) {
-            CommonSizeConvertConfigs.BinaryBits
-        } else {
-            CommonSizeConvertConfigs.BinaryBytes
-        }
+
+    override val sizeUnit = appSettings.sizeUnit.mapStateFlow {
+        it.toConfig()
+    }
+    override val speedUnit = appSettings.speedUnit.mapStateFlow {
+        it.toConfig()
     }
 
+
+    fun setSizeUnit(sizeUnit: ConvertSizeConfig) {
+        SupportedSizeUnits.fromConfig(sizeUnit)?.let {
+            appSettings.sizeUnit.value = it
+        }
+    }
     fun setSpeedUnit(speedUnit: ConvertSizeConfig) {
-        appSettings.useBitsForSpeed.value = speedUnit.baseSize == BaseSize.Bits
+        SupportedSizeUnits.fromConfig(speedUnit)?.let {
+            appSettings.speedUnit.value = it
+        }
     }
 
     fun boot() {

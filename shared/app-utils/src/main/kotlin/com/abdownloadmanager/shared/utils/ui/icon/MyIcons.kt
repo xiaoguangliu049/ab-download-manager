@@ -8,6 +8,8 @@ object MyIcons : IMyIcons {
     override val appIcon: IconSource get() = "/icons/app_icon.svg".asIconSource(false)
 
     override val settings get() = "/icons/settings.svg".asIconSource()
+    override val flag get() = "/icons/flag.svg".asIconSource()
+    override val fast get() = "/icons/fast.svg".asIconSource()
     override val search get() = "/icons/search.svg".asIconSource()
     override val info get() = "/icons/info.svg".asIconSource()
     override val check get() = "/icons/check.svg".asIconSource()
@@ -83,6 +85,7 @@ override val back get() = "/icons/back.svg".asIconSource()
 
     override val question get() = "/icons/question_mark.svg".asIconSource()
 
+    override val grip get() = "/icons/grip.svg".asIconSource()
     override val sortUp get() = "/icons/sort_321.svg".asIconSource()
     override val sortDown get() = "/icons/sort_123.svg".asIconSource()
     override val verticalDirection get() = "/icons/vertical_direction.svg".asIconSource()
