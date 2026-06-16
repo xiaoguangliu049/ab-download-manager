@@ -3,56 +3,65 @@ package com.abdownloadmanager.desktop.storage
 import androidx.datastore.core.DataStore
 import arrow.optics.Lens
 import arrow.optics.optics
+import com.abdownloadmanager.shared.storage.BaseAppSettingsStorage
+import com.abdownloadmanager.shared.storage.IAppSettingsModel
+import com.abdownloadmanager.shared.storage.SupportedSizeUnits
 import com.abdownloadmanager.shared.ui.theme.ThemeSettingsStorage
-import com.abdownloadmanager.shared.utils.ConfigBaseSettingsByMapConfig
-import com.abdownloadmanager.shared.utils.SystemDownloadLocationProvider
-import com.abdownloadmanager.shared.utils.ui.theme.DEFAULT_UI_SCALE
+import com.abdownloadmanager.shared.util.downloadlocation.PlatformDownloadLocationProvider
+import com.abdownloadmanager.shared.util.ConfigBaseSettingsByMapConfig
+import com.abdownloadmanager.shared.util.SystemDownloadLocationProvider
+import com.abdownloadmanager.shared.util.ui.theme.DEFAULT_UI_SCALE
 import ir.amirab.util.compose.localizationmanager.LanguageStorage
 import ir.amirab.util.config.*
 import ir.amirab.util.enumValueOrNull
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.serialization.Serializable
 import org.koin.core.component.KoinComponent
 
 @optics([arrow.optics.OpticsTarget.LENS])
 @Serializable
 data class AppSettingsModel(
-    val theme: String = "dark",
-    val defaultDarkTheme: String = "dark",
-    val defaultLightTheme: String = "light",
-    val language: String? = null,
-    val font: String? = null,
-    val uiScale: Float? = null,
-    val mergeTopBarWithTitleBar: Boolean = false,
+    override val theme: String = "dark",
+    override val defaultDarkTheme: String = "dark",
+    override val defaultLightTheme: String = "light",
+    override val language: String? = null,
+    override val font: String? = null,
+    override val uiScale: Float? = null,
+    val mergeTopBarWithTitleBar: Boolean = true,
     val useNativeMenuBar: Boolean = false,
-    val showIconLabels: Boolean = true,
-    val useRelativeDateTime: Boolean = true,
+    override val showIconLabels: Boolean = true,
+    override val useRelativeDateTime: Boolean = true,
     val useSystemTray: Boolean = true,
-    val threadCount: Int = 8,
-    val maxDownloadRetryCount: Int = 3,
-    val dynamicPartCreation: Boolean = true,
-    val useServerLastModifiedTime: Boolean = false,
-    val appendExtensionToIncompleteDownloads: Boolean = false,
-    val useSparseFileAllocation: Boolean = true,
-    val useAverageSpeed: Boolean = true,
-    val showDownloadProgressDialog: Boolean = true,
-    val showDownloadCompletionDialog: Boolean = true,
-    val speedLimit: Long = 0,
-    val autoStartOnBoot: Boolean = true,
-    val notificationSound: Boolean = true,
-    val defaultDownloadFolder: String = SystemDownloadLocationProvider
+    override val threadCount: Int = 8,
+    override val maxConcurrentDownloads: Int = 3,
+    override val maxDownloadRetryCount: Int = 3,
+    override val dynamicPartCreation: Boolean = true,
+    override val useServerLastModifiedTime: Boolean = false,
+    override val appendExtensionToIncompleteDownloads: Boolean = false,
+    override val useSparseFileAllocation: Boolean = true,
+    override val useAverageSpeed: Boolean = true,
+    override val showDownloadProgressDialog: Boolean = true,
+    override val showDownloadCompletionDialog: Boolean = true,
+    override val speedLimit: Long = 0,
+    override val autoStartOnBoot: Boolean = true,
+    override val notificationSound: Boolean = true,
+    override val generalNotificationSound: String = "",
+    override val successNotificationSound: String = "",
+    override val errorNotificationSound: String = "",
+    override val defaultDownloadFolder: String = PlatformDownloadLocationProvider
         .instance.getDownloadLocation()
         .resolve("ABDM")
         .canonicalFile.absolutePath,
-    val browserIntegrationEnabled: Boolean = true,
-    val browserIntegrationPort: Int = 15151,
-    val trackDeletedFilesOnDisk: Boolean = false,
-    val deletePartialFileOnDownloadCancellation: Boolean = false,
-    val sizeUnit: SupportedSizeUnits = SupportedSizeUnits.BinaryBytes,
-    val speedUnit: SupportedSizeUnits = SupportedSizeUnits.BinaryBytes,
-    val ignoreSSLCertificates: Boolean = false,
-    val useCategoryByDefault: Boolean = true,
-    val userAgent: String = "",
-) {
+    override val browserIntegrationEnabled: Boolean = true,
+    override val browserIntegrationPort: Int = 15151,
+    override val trackDeletedFilesOnDisk: Boolean = false,
+    override val deletePartialFileOnDownloadCancellation: Boolean = false,
+    override val sizeUnit: SupportedSizeUnits = SupportedSizeUnits.BinaryBytes,
+    override val speedUnit: SupportedSizeUnits = SupportedSizeUnits.BinaryBytes,
+    override val ignoreSSLCertificates: Boolean = false,
+    override val useCategoryByDefault: Boolean = true,
+    override val userAgent: String = "",
+) : IAppSettingsModel {
     companion object {
         val default: AppSettingsModel get() = AppSettingsModel()
     }
@@ -71,6 +80,7 @@ data class AppSettingsModel(
             val useRelativeDateTime = booleanKeyOf("useRelativeDateTime")
             val useSystemTray = booleanKeyOf("useSystemTray")
             val threadCount = intKeyOf("threadCount")
+            val maxConcurrentDownloads = intKeyOf("maxConcurrentDownloads")
             val maxDownloadRetryCount = intKeyOf("maxDownloadRetryCount")
             val dynamicPartCreation = booleanKeyOf("dynamicPartCreation")
             val useServerLastModifiedTime = booleanKeyOf("useServerLastModifiedTime")
@@ -82,6 +92,9 @@ data class AppSettingsModel(
             val speedLimit = longKeyOf("speedLimit")
             val autoStartOnBoot = booleanKeyOf("autoStartOnBoot")
             val notificationSound = booleanKeyOf("notificationSound")
+            val generalNotificationSound = stringKeyOf("generalNotificationSound")
+            val errorNotificationSound = stringKeyOf("errorNotificationSound")
+            val successNotificationSound = stringKeyOf("successNotificationSound")
             val defaultDownloadFolder = stringKeyOf("defaultDownloadFolder")
             val browserIntegrationEnabled = booleanKeyOf("browserIntegrationEnabled")
             val browserIntegrationPort = intKeyOf("browserIntegrationPort")
@@ -111,6 +124,7 @@ data class AppSettingsModel(
                 useRelativeDateTime = source.get(Keys.useRelativeDateTime) ?: default.useRelativeDateTime,
                 useSystemTray = source.get(Keys.useSystemTray) ?: default.useSystemTray,
                 threadCount = source.get(Keys.threadCount) ?: default.threadCount,
+                maxConcurrentDownloads = source.get(Keys.maxConcurrentDownloads) ?: default.maxConcurrentDownloads,
                 maxDownloadRetryCount = source.get(Keys.maxDownloadRetryCount) ?: default.maxDownloadRetryCount,
                 dynamicPartCreation = source.get(Keys.dynamicPartCreation) ?: default.dynamicPartCreation,
                 useServerLastModifiedTime = source.get(Keys.useServerLastModifiedTime)
@@ -126,6 +140,11 @@ data class AppSettingsModel(
                 speedLimit = source.get(Keys.speedLimit) ?: default.speedLimit,
                 autoStartOnBoot = source.get(Keys.autoStartOnBoot) ?: default.autoStartOnBoot,
                 notificationSound = source.get(Keys.notificationSound) ?: default.notificationSound,
+                generalNotificationSound = source.get(Keys.generalNotificationSound)
+                    ?: default.generalNotificationSound,
+                errorNotificationSound = source.get(Keys.errorNotificationSound) ?: default.errorNotificationSound,
+                successNotificationSound = source.get(Keys.successNotificationSound)
+                    ?: default.successNotificationSound,
                 defaultDownloadFolder = source.get(Keys.defaultDownloadFolder) ?: default.defaultDownloadFolder,
                 browserIntegrationEnabled = source.get(Keys.browserIntegrationEnabled)
                     ?: default.browserIntegrationEnabled,
@@ -155,6 +174,7 @@ data class AppSettingsModel(
                 put(Keys.useRelativeDateTime, focus.useRelativeDateTime)
                 put(Keys.useSystemTray, focus.useSystemTray)
                 put(Keys.threadCount, focus.threadCount)
+                put(Keys.maxConcurrentDownloads, focus.maxConcurrentDownloads)
                 put(Keys.maxDownloadRetryCount, focus.maxDownloadRetryCount)
                 put(Keys.dynamicPartCreation, focus.dynamicPartCreation)
                 put(Keys.useServerLastModifiedTime, focus.useServerLastModifiedTime)
@@ -166,6 +186,9 @@ data class AppSettingsModel(
                 put(Keys.speedLimit, focus.speedLimit)
                 put(Keys.autoStartOnBoot, focus.autoStartOnBoot)
                 put(Keys.notificationSound, focus.notificationSound)
+                put(Keys.generalNotificationSound, focus.generalNotificationSound)
+                put(Keys.errorNotificationSound, focus.errorNotificationSound)
+                put(Keys.successNotificationSound, focus.successNotificationSound)
                 put(Keys.defaultDownloadFolder, focus.defaultDownloadFolder)
                 put(Keys.browserIntegrationEnabled, focus.browserIntegrationEnabled)
                 put(Keys.browserIntegrationPort, focus.browserIntegrationPort)
@@ -213,42 +236,45 @@ private val languageLens: Lens<AppSettingsModel, String?>
 
 class AppSettingsStorage(
     settings: DataStore<MapConfig>,
-) :
-    ConfigBaseSettingsByMapConfig<AppSettingsModel>(settings, AppSettingsModel.ConfigLens),
-    LanguageStorage,
-    ThemeSettingsStorage {
+) : BaseAppSettingsStorage,
+    ConfigBaseSettingsByMapConfig<AppSettingsModel>(settings, AppSettingsModel.ConfigLens) {
     override val theme = from(AppSettingsModel.theme)
     override val defaultDarkTheme = from(AppSettingsModel.defaultDarkTheme)
     override val defaultLightTheme = from(AppSettingsModel.defaultLightTheme)
 
     override val selectedLanguage = from(languageLens)
-    val font = from(fontLens)
-    val uiScale = from(uiScaleLens)
+    override val font = from(fontLens)
+    override val uiScale = from(uiScaleLens)
     val mergeTopBarWithTitleBar = from(AppSettingsModel.mergeTopBarWithTitleBar)
     val useNativeMenuBar = from(AppSettingsModel.useNativeMenuBar)
-    val showIconLabels = from(AppSettingsModel.showIconLabels)
-    val useRelativeDateTime = from(AppSettingsModel.useRelativeDateTime)
+    override val showIconLabels = from(AppSettingsModel.showIconLabels)
+    override val useRelativeDateTime = from(AppSettingsModel.useRelativeDateTime)
     val useSystemTray = from(AppSettingsModel.useSystemTray)
-    val threadCount = from(AppSettingsModel.threadCount)
-    val dynamicPartCreation = from(AppSettingsModel.dynamicPartCreation)
-    val useServerLastModifiedTime = from(AppSettingsModel.useServerLastModifiedTime)
-    val appendExtensionToIncompleteDownloads = from(AppSettingsModel.appendExtensionToIncompleteDownloads)
-    val useSparseFileAllocation = from(AppSettingsModel.useSparseFileAllocation)
-    val useAverageSpeed = from(AppSettingsModel.useAverageSpeed)
-    val maxDownloadRetryCount = from(AppSettingsModel.maxDownloadRetryCount)
-    val showDownloadProgressDialog = from(AppSettingsModel.showDownloadProgressDialog)
-    val showDownloadCompletionDialog = from(AppSettingsModel.showDownloadCompletionDialog)
-    val speedLimit = from(AppSettingsModel.speedLimit)
-    val autoStartOnBoot = from(AppSettingsModel.autoStartOnBoot)
-    val notificationSound = from(AppSettingsModel.notificationSound)
-    val defaultDownloadFolder = from(AppSettingsModel.defaultDownloadFolder)
-    val browserIntegrationEnabled = from(AppSettingsModel.browserIntegrationEnabled)
-    val browserIntegrationPort = from(AppSettingsModel.browserIntegrationPort)
-    val trackDeletedFilesOnDisk = from(AppSettingsModel.trackDeletedFilesOnDisk)
-    val deletePartialFileOnDownloadCancellation = from(AppSettingsModel.deletePartialFileOnDownloadCancellation)
-    val sizeUnit = from(AppSettingsModel.sizeUnit)
-    val speedUnit = from(AppSettingsModel.speedUnit)
-    val ignoreSSLCertificates = from(AppSettingsModel.ignoreSSLCertificates)
-    val useCategoryByDefault = from(AppSettingsModel.useCategoryByDefault)
-    val userAgent = from(AppSettingsModel.userAgent)
+    override val threadCount = from(AppSettingsModel.threadCount)
+    override val maxConcurrentDownloads = from(AppSettingsModel.maxConcurrentDownloads)
+    override val dynamicPartCreation = from(AppSettingsModel.dynamicPartCreation)
+    override val useServerLastModifiedTime = from(AppSettingsModel.useServerLastModifiedTime)
+    override val appendExtensionToIncompleteDownloads = from(AppSettingsModel.appendExtensionToIncompleteDownloads)
+    override val useSparseFileAllocation = from(AppSettingsModel.useSparseFileAllocation)
+    override val useAverageSpeed = from(AppSettingsModel.useAverageSpeed)
+    override val maxDownloadRetryCount = from(AppSettingsModel.maxDownloadRetryCount)
+    override val showDownloadProgressDialog = from(AppSettingsModel.showDownloadProgressDialog)
+    override val showDownloadCompletionDialog = from(AppSettingsModel.showDownloadCompletionDialog)
+    override val speedLimit = from(AppSettingsModel.speedLimit)
+    override val autoStartOnBoot = from(AppSettingsModel.autoStartOnBoot)
+    override val notificationSound = from(AppSettingsModel.notificationSound)
+    override val generalNotificationSound = from(AppSettingsModel.generalNotificationSound)
+    override val errorNotificationSound = from(AppSettingsModel.errorNotificationSound)
+    override val successNotificationSound = from(AppSettingsModel.successNotificationSound)
+    override val defaultDownloadFolder = from(AppSettingsModel.defaultDownloadFolder)
+    override val browserIntegrationEnabled = from(AppSettingsModel.browserIntegrationEnabled)
+    override val browserIntegrationPort = from(AppSettingsModel.browserIntegrationPort)
+    override val trackDeletedFilesOnDisk = from(AppSettingsModel.trackDeletedFilesOnDisk)
+    override val deletePartialFileOnDownloadCancellation =
+        from(AppSettingsModel.deletePartialFileOnDownloadCancellation)
+    override val sizeUnit = from(AppSettingsModel.sizeUnit)
+    override val speedUnit = from(AppSettingsModel.speedUnit)
+    override val ignoreSSLCertificates = from(AppSettingsModel.ignoreSSLCertificates)
+    override val useCategoryByDefault = from(AppSettingsModel.useCategoryByDefault)
+    override val userAgent = from(AppSettingsModel.userAgent)
 }

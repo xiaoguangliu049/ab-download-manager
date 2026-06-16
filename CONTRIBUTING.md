@@ -1,9 +1,5 @@
 # Contributing to AB Download Manager
 
-> ❌ **Important Notice:** The entire codebase is being completely rewritten. Pull requests are **not accepted** at this
-> time, as incoming changes may be lost or conflict heavily with ongoing refactoring. Please wait until the refactor is
-> complete before submitting any PRs.
-
 Thank you for your interest in contributing to AB Download Manager! I appreciate any help you can offer.
 
 ## What Contributions Are Accepted?
@@ -45,3 +41,11 @@ If you're ready to contribute code, that's awesome! Before you start, here’s w
 - **Review & Feedback**: I’ll review your PR as soon as I can. There might be some feedback or requests for changes, so be ready to make adjustments if needed.
 
 - **Merging**: If everything looks good, I’ll merge your PR into the master branch.
+
+### Pull Request Requirements
+
+You are responsible for testing, debugging, and maintaining your pull request until it is merged.
+
+Vibe coding is not allowed. Do not submit AI-generated code and expect review cycles to shape it into a working implementation. If you submit a pull request, you must understand the code, verify that it works, and address issues yourself.
+
+Pull requests that primarily shift development, testing, or debugging work to reviewers may be closed without review.

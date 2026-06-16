@@ -1,9 +1,5 @@
 package com.abdownloadmanager.desktop.pages.addDownload.multiple
 
-import com.abdownloadmanager.shared.utils.ui.WithContentAlpha
-import com.abdownloadmanager.shared.utils.ui.myColors
-import com.abdownloadmanager.shared.utils.ui.theme.myTextSizes
-import com.abdownloadmanager.shared.ui.widget.customtable.styled.MyStyledTableHeader
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -19,41 +15,46 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.PointerButton
-import androidx.compose.ui.input.pointer.PointerButton.Companion
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.abdownloadmanager.resources.Res
+import com.abdownloadmanager.shared.downloaderinui.add.NewDownloadInputsUniqueIdType
+import com.abdownloadmanager.shared.pages.adddownload.multiple.NewMultiDownloadState
 import com.abdownloadmanager.shared.ui.widget.CheckBox
 import com.abdownloadmanager.shared.ui.widget.Text
-import com.abdownloadmanager.shared.ui.widget.customtable.CellSize
-import com.abdownloadmanager.shared.ui.widget.customtable.CustomCellRenderer
-import com.abdownloadmanager.shared.ui.widget.customtable.Table
-import com.abdownloadmanager.shared.ui.widget.customtable.TableCell
-import com.abdownloadmanager.resources.Res
-import com.abdownloadmanager.shared.downloaderinui.add.TANewDownloadInputs
-import com.abdownloadmanager.shared.utils.FileIconProvider
-import com.abdownloadmanager.shared.utils.ui.widget.MyIcon
+import com.abdownloadmanager.shared.ui.widget.table.customtable.*
+import com.abdownloadmanager.shared.ui.widget.table.customtable.styled.MyStyledTableHeader
+import com.abdownloadmanager.shared.util.FileIconProvider
+import com.abdownloadmanager.shared.util.ui.WithContentAlpha
+import com.abdownloadmanager.shared.util.ui.myColors
+import com.abdownloadmanager.shared.util.ui.theme.myTextSizes
+import com.abdownloadmanager.shared.util.ui.widget.MyIcon
 import ir.amirab.util.compose.StringSource
 import ir.amirab.util.compose.asStringSource
 
 @Composable
 fun AddMultiDownloadTable(
     modifier: Modifier,
-    component: AddMultiDownloadComponent,
+    component: DesktopAddMultiDownloadComponent,
 ) {
     var isCtrlPressed by remember { mutableStateOf(false) }
 
     val lastSelectedId = component.lastSelectedId
-    val context = AddMultiItemListContext(component, component.isAllSelected)
+    val context = AddMultiItemListContext(component, component.isAllFilteredSelected.collectAsState().value)
     val iconProvider = component.fileIconProvider
+    val list by component.filteredList.collectAsState()
+
     CompositionLocalProvider(
         LocalAddMultiItemListContext provides context,
     ) {
         val itemHorizontalPadding = 16.dp
         Table(
-            key = component::getIdOf,
+            key = {
+                it.id
+            },
             tableState = component.tableState,
-            list = component.list,
+            list = list,
             modifier = modifier
                 .onKeyEvent {
                     isCtrlPressed = it.isCtrlPressed
@@ -85,12 +86,11 @@ fun AddMultiDownloadTable(
                 val shape = RoundedCornerShape(12.dp)
                 WithContentAlpha(1f) {
                     val isSelected = remember(item, component.selectionList) {
-                        component.isSelected(item)
+                        component.isSelected(item.id)
                     }
                     CompositionLocalProvider(
                         LocalIsChecked provides isSelected,
                     ) {
-                        val credentials by item.credentials.collectAsState()
                         val itemInteractionSource = remember { MutableInteractionSource() }
                         Box(
                             Modifier
@@ -99,10 +99,10 @@ fun AddMultiDownloadTable(
                                     interactionSource = itemInteractionSource
                                 ) {
                                     if (isCtrlPressed) {
-                                        context.select(credentials.link, !isSelected)
+                                        context.select(item.id, !isSelected)
                                     } else {
                                         context.changeAllSelection(false)
-                                        context.select(credentials.link, true)
+                                        context.select(item.id, true)
                                     }
                                 }
                                 .onClick(
@@ -112,10 +112,10 @@ fun AddMultiDownloadTable(
                                     }
                                 ) {
                                     val lastSelected = lastSelectedId ?: return@onClick
-                                    val currentId = credentials.link
+                                    val currentId = item.id
                                     val ids = component.tableState.getARangeOfItems(
-                                        list = component.list,
-                                        id = { it.credentials.value.link },
+                                        list = list,
+                                        id = { it.id },
                                         fromItem = lastSelected,
                                         toItem = currentId,
                                     )
@@ -124,9 +124,7 @@ fun AddMultiDownloadTable(
                                 .onClick(
                                     matcher = PointerMatcher.mouse(PointerButton.Secondary)
                                 ) {
-                                    component.openConfigurableList(
-                                        component.getIdOf(item)
-                                    )
+                                    component.openConfigurableList(item.id)
                                 }
                                 .fillMaxWidth()
                                 .padding(vertical = 1.dp)
@@ -161,16 +159,16 @@ fun AddMultiDownloadTable(
             when (cell) {
                 AddMultiItemTableCells.Check -> {
                     CheckCell(
-                        downloadChecker = item,
+                        newMultiDownloadState = item,
                         onCheckedChange = { dc, b ->
-                            component.setSelect(item.credentials.value.link, b)
+                            component.setSelect(item.id, b)
                         }
                     )
                 }
 
                 AddMultiItemTableCells.Name -> {
                     NameCell(
-                        downloadUiChecker = item,
+                        item = item,
                         iconProvider = iconProvider,
                     )
                 }
@@ -196,23 +194,23 @@ private val LocalAddMultiItemListContext = compositionLocalOf<AddMultiItemListCo
 }
 
 class AddMultiItemListContext(
-    val component: AddMultiDownloadComponent,
+    val component: DesktopAddMultiDownloadComponent,
     val isAllSelected: Boolean,
 ) {
     fun changeAllSelection(boolean: Boolean) {
         component.selectAll(boolean)
     }
 
-    fun select(id: String, boolean: Boolean) {
+    fun select(id: NewDownloadInputsUniqueIdType, boolean: Boolean) {
         component.setSelect(id, boolean)
     }
 
-    fun newSelection(ids: List<String>, boolean: Boolean) {
+    fun newSelection(ids: List<NewDownloadInputsUniqueIdType>, boolean: Boolean) {
         component.resetSelectionTo(ids, boolean)
     }
 }
 
-sealed class AddMultiItemTableCells : TableCell<TANewDownloadInputs> {
+sealed class AddMultiItemTableCells : TableCell<NewMultiDownloadState> {
     companion object {
         fun all(): List<AddMultiItemTableCells> {
             return listOf(
@@ -241,22 +239,31 @@ sealed class AddMultiItemTableCells : TableCell<TANewDownloadInputs> {
         }
     }
 
-    data object Name : AddMultiItemTableCells() {
+    data object Name : AddMultiItemTableCells(), SortableCell<NewMultiDownloadState> {
         override val id: String = "Name"
         override val name: StringSource = Res.string.name.asStringSource()
         override val size: CellSize = CellSize.Resizeable(120.dp..1000.dp, 350.dp)
+        override fun comparator(): Comparator<NewMultiDownloadState> {
+            return compareBy { it.name }
+        }
     }
 
-    data object Link : AddMultiItemTableCells() {
+    data object Link : AddMultiItemTableCells(), SortableCell<NewMultiDownloadState> {
         override val id: String = "Link"
         override val name: StringSource = Res.string.link.asStringSource()
         override val size: CellSize = CellSize.Resizeable(120.dp..2000.dp, 240.dp)
+        override fun comparator(): Comparator<NewMultiDownloadState> {
+            return compareBy { it.link }
+        }
     }
 
-    data object SizeCell : AddMultiItemTableCells() {
+    data object SizeCell : AddMultiItemTableCells(), SortableCell<NewMultiDownloadState> {
         override val id: String = "Size"
         override val name: StringSource = Res.string.size.asStringSource()
         override val size: CellSize = CellSize.Resizeable(100.dp..180.dp, 100.dp)
+        override fun comparator(): Comparator<NewMultiDownloadState> {
+            return compareBy { it.size }
+        }
     }
 }
 
@@ -264,21 +271,23 @@ sealed class AddMultiItemTableCells : TableCell<TANewDownloadInputs> {
 @Composable
 private fun CellText(
     text: String,
+    color: Color = Color.Unspecified,
 ) {
     Text(
         text,
         fontSize = myTextSizes.base,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
+        color = color,
     )
 }
 
 @Composable
 private fun NameCell(
-    downloadUiChecker: TANewDownloadInputs,
+    item: NewMultiDownloadState,
     iconProvider: FileIconProvider,
 ) {
-    val name by downloadUiChecker.name.collectAsState()
+    val name = item.name
     val icon = iconProvider.rememberIcon(name)
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -296,32 +305,38 @@ private fun NameCell(
 
 @Composable
 private fun LinkCell(
-    downloadChecker: TANewDownloadInputs,
+    item: NewMultiDownloadState,
 ) {
-    val credentials by downloadChecker.credentials.collectAsState()
-    CellText(credentials.link)
+    CellText(item.link)
 }
 
 @Composable
 private fun SizeCell(
-    downloadChecker: TANewDownloadInputs,
+    multiDownloadState: NewMultiDownloadState,
 ) {
-    val length by downloadChecker.lengthStringFlow.collectAsState()
-    CellText(
-        length.rememberString()
-    )
+    val lastErrorReason = multiDownloadState.lastErrorReason
+    if (lastErrorReason != null) {
+        CellText(
+            lastErrorReason.title,
+            color = myColors.error,
+        )
+    } else {
+        CellText(
+            multiDownloadState.sizeString.rememberString()
+        )
+    }
 }
 
 @Composable
 private fun CheckCell(
-    onCheckedChange: (TANewDownloadInputs, Boolean) -> Unit,
-    downloadChecker: TANewDownloadInputs,
+    onCheckedChange: (NewMultiDownloadState, Boolean) -> Unit,
+    newMultiDownloadState: NewMultiDownloadState,
 ) {
     val isChecked = LocalIsChecked.current
     CheckBox(
         value = isChecked,
         onValueChange = {
-            onCheckedChange(downloadChecker, it)
+            onCheckedChange(newMultiDownloadState, it)
         },
         modifier = Modifier,
         size = 12.dp,

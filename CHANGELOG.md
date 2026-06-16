@@ -14,6 +14,211 @@
 
 ### Security
 
+## 1.9.1
+
+### Added
+
+- An option to customize notification sounds (#1259)
+
+### Fixed
+
+- Ongoing notification was laggy on Samsung One UI devices (#1269)
+
+### Improved
+
+- Updated Translations
+- Minor UI/UX improvements
+
+## 1.9.0
+
+### Added
+
+- Czech language support
+- User-friendly error messages for download errors (#1252)
+- An option to remember the last selected queue and quickly add downloads to it by long-clicking the `Add` button (
+  #1246)
+- An option to import/export downloads using JSON format
+- A `Download` button on the multi-download page for cases where users do not want to start downloads without queue
+  processing (#1247)
+- The app now includes a logger that can be enabled using a command-line flag (#1226)
+- Startup errors are now logged automatically to help diagnose initialization issues
+
+### Changed
+
+- The default unqueued "Max Concurrent Downloads" value has been changed from "Unlimited" to 3 (This can be customized
+  in the app settings)
+
+### Improved
+
+- Updated translations
+- Added an indicator on the Android main page when resume is not supported (#1248)
+- Extract the file name from the download link as a fallback when no response information is available (#1209)
+- Minor UI/UX improvements
+
+## 1.8.8
+
+### Added
+
+- Reordering categories (#1119)
+
+### Changed
+
+- Quit Shortcut changed from `Ctrl-W` to `Ctrl-Q`
+
+### Fixed
+
+- Show part info not showing automatically if it was previously shown (#1183)
+- "Edit Saved Checksum" now correctly updated on the Checksum page on Android
+- the Main window correctly remembers its maximized state (#1185)
+- System tray now uses the native UI on Linux (arm64)
+- Other UI/UX improvements
+
+### Improved
+
+- Updated translations
+- Minor UI improvements
+
+## 1.8.7
+
+### Added
+
+- Ability to change the storage root when selecting the download location on Android (e.g., save to SD card) (#1101)
+- Option to choose the render API on Desktop (#1103)
+
+### Changed
+
+- Default render API set to `SOFTWARE` on Linux
+
+### Improved
+
+- Updated translations
+- Increment/decrement buttons in number fields are now more accessible (#1104)
+- Minor UI improvements
+
+## 1.8.6
+
+### Added
+
+- Linux ARM support (#1081)
+- An option to set max concurrent downloads for manually resumed downloads (#1085)
+
+### Fixed
+
+- Do not reset the download if storage is not mounted yet (#1087)
+- Error when assembling HLS media if destination folder was not created yet (#1089)
+- Do not reset the download if server changes status code from 206 to 200 (#1088)
+
+### Improved
+
+- Updated translations
+- Queue logic improvements (#1086)
+- Linux Installation Script updated to support ARM devices (#1090)
+
+## 1.8.5
+
+### Added
+
+- Windows ARM support (#1055)
+- In-app browser bookmark feature on Android (#1072)
+- In-app browser can be added to the launcher (App Menu)
+- In-app browser can be used as the default browser
+
+### Fixed
+
+- System tray crash on some Linux environments (#1060)
+- Black screen issue on some Linux environments (#1066)
+- Notification sound playing even when notification sounds are muted on Android (#1064)
+
+### Improved
+
+- Updated translations
+- In-app browser UI/UX improvements on Android
+- System tray now uses native UI on Windows (#1060)
+- Use a default User-Agent when no value is provided by the user (#1071)
+- Small UI improvements
+
+## 1.8.4
+
+### Added
+
+- In-app browser for Android
+- The Android service now tells the user why it is running
+- The Add-Multi-Download page can now filter downloads using search and wildcards
+
+### Fixed
+
+- Random app crashes on some Android devices caused by service-related issues
+- Issues with the in-app update feature on some Android devices
+
+### Improved
+
+- Updated translations
+- The Android Foreground Service is now only used when necessary (active downloads, active queues, scheduled queues) and
+  automatically stops after inactivity
+- Add-Multi-Download page UI/UX improvements
+
+## 1.8.3
+
+### Added
+
+- Ability to sort and remove queue items on Android (#996)
+- A new shortcut to open the download list from the download progress dialog (#1001)
+
+### Fixed
+
+- Download table state not saved properly on desktop (#999)
+- Update related notifications appearing repeatedly on android (#998)
+
+### Improved
+
+- Updated translations
+- Settings Page UI improvements on android (#990)
+
+## 1.8.2
+
+### Fixed
+
+- Resolved issues with the In-App update feature on some android devices
+- Disabled notification badges on the launcher icon on android
+- The application crashes on some devices (desktops) because of an issue in system theme detection logic
+
+### Improved
+
+- Updated translations
+- Added tooltips for action buttons
+- Display selected count in the "Add Multi Download" page on desktop (#970)
+- Reduced battery consumption
+- Various UI/UX enhancements
+
+## 1.8.1
+
+### Fixed
+
+- Android 10 storage access issue that caused download errors (#977)
+
+### Improved
+
+- Updated translations
+- Better support for adaptive icons on Android (#978)
+- Improved directory picker on Android (#979)
+- Slightly reduced application size
+
+## 1.8.0
+
+### Added
+
+- Android Support
+- macOS users can now use homebrew to install/update the application
+
+### Fixed
+
+- Some HLS streams are not recognized properly
+
+### Improved
+
+- Updated translations
+- UI improvements
+
 ## 1.7.1
 
 ### Added

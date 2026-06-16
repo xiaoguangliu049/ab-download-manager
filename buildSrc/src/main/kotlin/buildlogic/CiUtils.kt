@@ -4,6 +4,7 @@ import io.github.z4kn4fein.semver.Version
 import ir.amirab.installer.InstallerTargetFormat
 import ir.amirab.util.platform.Arch
 import ir.amirab.util.platform.Platform
+import org.gradle.api.Project
 import java.io.File
 
 object CiUtils {
@@ -11,6 +12,7 @@ object CiUtils {
         packageName: String,
         appVersion: Version,
         target: InstallerTargetFormat?,
+        archName: String?,
     ): String {
         val fileExtension = when (target) {
             // we use archived for app image distribution ( app image is a folder actually so there is no installer so we zip it instead)
@@ -19,7 +21,7 @@ object CiUtils {
                     Platform.Desktop.Linux -> "tar.gz"
                     Platform.Desktop.MacOS -> "tar.gz"
                     Platform.Desktop.Windows -> "zip"
-                    Platform.Android -> error("Android not available for now")
+                    Platform.Android -> error("this can only be used with desktop formats")
                 }
             }
 
@@ -35,8 +37,13 @@ object CiUtils {
                 }
             }
         }.name.lowercase()
-        val archName = Arch.getCurrentArch().name
-        return "${packageName}_${appVersion}_${platformName}_${archName}.${fileExtension}"
+        val nameWithoutExtension = listOf(
+            packageName,
+            appVersion.toString(),
+            platformName,
+            archName?: "universal",
+        ).joinToString("_")
+        return "$nameWithoutExtension.${fileExtension}"
     }
 
     fun getFileOfPackagedTarget(
@@ -106,13 +113,25 @@ object CiUtils {
             baseOutputDir = basePackagedAppsDir,
             target = target
         )
-
-        val newName = getTargetFileName(packageName, appVersion, target)
+        val arch = Arch.getCurrentArch().name
+        val newName = getTargetFileName(
+            packageName = packageName,
+            appVersion = appVersion,
+            target = target,
+            archName = arch,
+        )
         copyAndHashToDestination(
             src = exeFile,
             destinationFolder = outputDir,
             name = newName,
         )
+    }
+
+    fun getCiDir(project: Project): CiDirs {
+        return CiDirs(project.rootProject.layout.buildDirectory)
+    }
+    fun getCreateBinaryFolderForCiTaskName(): String {
+        return "createBinariesForCi"
     }
     /*
         fun moveAndCreateSignature(

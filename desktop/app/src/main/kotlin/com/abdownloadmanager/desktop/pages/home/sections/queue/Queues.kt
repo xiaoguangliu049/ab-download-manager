@@ -46,22 +46,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.abdownloadmanager.desktop.pages.home.HomeComponent
-import com.abdownloadmanager.desktop.pages.home.QueueActions
+import com.abdownloadmanager.shared.pages.home.queue.QueueActions
 import com.abdownloadmanager.desktop.pages.home.dropDownloadItemsHere
 import com.abdownloadmanager.resources.Res
 import com.abdownloadmanager.shared.ui.widget.DelayedTooltipPopup
 import com.abdownloadmanager.shared.ui.widget.ExpandableItem
 import com.abdownloadmanager.shared.ui.widget.Text
-import com.abdownloadmanager.shared.ui.widget.menu.custom.ShowOptionsInDropDown
-import com.abdownloadmanager.shared.utils.div
-import com.abdownloadmanager.shared.utils.ui.LocalContentAlpha
-import com.abdownloadmanager.shared.utils.ui.LocalContentColor
-import com.abdownloadmanager.shared.utils.ui.WithContentAlpha
-import com.abdownloadmanager.shared.utils.ui.icon.MyIcons
-import com.abdownloadmanager.shared.utils.ui.myColors
-import com.abdownloadmanager.shared.utils.ui.theme.myShapes
-import com.abdownloadmanager.shared.utils.ui.theme.myTextSizes
-import com.abdownloadmanager.shared.utils.ui.widget.MyIcon
+import com.abdownloadmanager.shared.ui.widget.menu.custom.ShowOptionsInPopup
+import com.abdownloadmanager.shared.util.div
+import com.abdownloadmanager.shared.util.ui.LocalContentAlpha
+import com.abdownloadmanager.shared.util.ui.LocalContentColor
+import com.abdownloadmanager.shared.util.ui.WithContentAlpha
+import com.abdownloadmanager.shared.util.ui.icon.MyIcons
+import com.abdownloadmanager.shared.util.ui.myColors
+import com.abdownloadmanager.shared.util.ui.theme.myShapes
+import com.abdownloadmanager.shared.util.ui.theme.mySpacings
+import com.abdownloadmanager.shared.util.ui.theme.myTextSizes
+import com.abdownloadmanager.shared.util.ui.widget.MyIcon
 import ir.amirab.downloader.db.QueueModel
 import ir.amirab.downloader.queue.DownloadQueue
 import ir.amirab.util.compose.action.MenuItem
@@ -124,7 +125,7 @@ internal fun QueuesSection(
                             MyIcon(
                                 MyIcons.queue,
                                 null,
-                                Modifier.size(16.dp)
+                                Modifier.size(mySpacings.iconSize)
                             )
                             Spacer(Modifier.width(4.dp))
                             Text(
@@ -259,7 +260,7 @@ private fun QueueFilterItem(
                 MyIcon(
                     MyIcons.folder,
                     null,
-                    Modifier.size(16.dp)
+                    Modifier.size(mySpacings.iconSize)
                 )
                 Spacer(Modifier.width(4.dp))
                 Text(
@@ -313,7 +314,7 @@ private fun QueueOption(
     queueOptionMenuState: QueueActions,
     onDismiss: () -> Unit,
 ) {
-    ShowOptionsInDropDown(
+    ShowOptionsInPopup(
         MenuItem.SubMenu(
             icon = MyIcons.queue,
             title = queueOptionMenuState.mainQueueModel?.name?.asStringSource() ?: Res.string.queues.asStringSource(),

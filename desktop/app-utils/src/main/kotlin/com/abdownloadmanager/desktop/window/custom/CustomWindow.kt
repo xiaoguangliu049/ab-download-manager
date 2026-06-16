@@ -1,6 +1,6 @@
 package com.abdownloadmanager.desktop.window.custom
 
-import com.abdownloadmanager.shared.utils.ui.WithContentColor
+import com.abdownloadmanager.shared.util.ui.WithContentColor
 import ir.amirab.util.compose.IconSource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,18 +31,18 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPlacement
 import androidx.compose.ui.window.WindowState
 import com.abdownloadmanager.desktop.window.custom.titlebar.TitleBar
-import com.abdownloadmanager.shared.utils.PopUpContainer
-import com.abdownloadmanager.shared.utils.ResponsiveBox
-import com.abdownloadmanager.shared.utils.ui.WithTitleBarDirection
-import com.abdownloadmanager.shared.utils.ui.icon.MyIcons
-import com.abdownloadmanager.shared.utils.ui.myColors
-import com.abdownloadmanager.shared.utils.ui.theme.LocalUiScale
-import com.abdownloadmanager.shared.utils.ui.theme.UiScaledContent
+import com.abdownloadmanager.shared.util.PopUpContainer
+import com.abdownloadmanager.shared.util.ResponsiveBox
+import com.abdownloadmanager.shared.util.ui.WithTitleBarDirection
+import com.abdownloadmanager.shared.util.ui.icon.MyIcons
+import com.abdownloadmanager.shared.util.ui.myColors
+import com.abdownloadmanager.shared.util.ui.theme.LocalUiScale
+import com.abdownloadmanager.shared.util.ui.theme.UiScaledContent
 import com.jetbrains.JBR
 import com.jetbrains.WindowDecorations
 import com.jetbrains.WindowMove
 import ir.amirab.util.desktop.LocalFrameWindowScope
-import ir.amirab.util.desktop.LocalWindow
+import com.abdownloadmanager.shared.ui.util.LocalWindow
 import ir.amirab.util.desktop.screen.applyUiScale
 import ir.amirab.util.ifThen
 import kotlinx.coroutines.Dispatchers
@@ -65,6 +65,7 @@ private fun FrameWindowScope.CustomWindowFrame(
     windowIcon: Painter? = null,
     background: Color,
     onBackground: Color,
+    isLight: Boolean,
     start: (@Composable () -> Unit)?,
     end: (@Composable () -> Unit)?,
     content: @Composable () -> Unit,
@@ -76,7 +77,8 @@ private fun FrameWindowScope.CustomWindowFrame(
                 .fillMaxSize()
                 .ifThen(!JBR.isWindowDecorationsSupported()) {
                     ifThen(isWindowFloating()) {
-                        border(1.dp, Color.Gray.copy(0.25f), RectangleShape)
+                        val borderColor = if (isLight) Color.LightGray else Color.DarkGray
+                        border(1.dp, borderColor, RectangleShape)
                             .padding(1.dp)
                     }
                 }
@@ -349,21 +351,18 @@ fun CustomWindow(
     val icon = windowController.icon ?: defaultAppIcon.rememberPainter()
 
 
-    val transparent: Boolean
     val undecorated: Boolean
     val isAeroSnapSupported = JBR.isWindowDecorationsSupported()
     if (isAeroSnapSupported) {
         //we use aero snap
-        transparent = false
         undecorated = false
     } else {
         //we decorate window and add our custom layout
-        transparent = true
         undecorated = true
     }
     Window(
         state = state,
-        transparent = transparent,
+        transparent = false,
         undecorated = undecorated,
         icon = icon,
         title = title,
@@ -403,6 +402,7 @@ fun CustomWindow(
                     windowIcon = icon,
                     background = background,
                     onBackground = myColors.onBackground,
+                    isLight = isLight,
                     start = start,
                     end = end,
                 ) {

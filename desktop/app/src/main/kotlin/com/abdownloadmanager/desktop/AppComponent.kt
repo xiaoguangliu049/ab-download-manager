@@ -1,36 +1,53 @@
 package com.abdownloadmanager.desktop
 
-import ir.amirab.util.desktop.poweraction.PowerActionConfig
-import com.abdownloadmanager.desktop.pages.addDownload.AddDownloadComponent
-import com.abdownloadmanager.desktop.pages.addDownload.AddDownloadConfig
-import com.abdownloadmanager.desktop.pages.addDownload.AddDownloadCredentialsInUiProps
-import com.abdownloadmanager.desktop.pages.addDownload.ImportOptions
-import com.abdownloadmanager.desktop.pages.addDownload.multiple.AddMultiDownloadComponent
-import com.abdownloadmanager.desktop.pages.addDownload.single.AddSingleDownloadComponent
-import com.abdownloadmanager.desktop.pages.batchdownload.BatchDownloadComponent
-import com.abdownloadmanager.desktop.pages.category.CategoryComponent
-import com.abdownloadmanager.desktop.pages.category.CategoryDialogManager
-import com.abdownloadmanager.desktop.pages.editdownload.EditDownloadComponent
-import com.abdownloadmanager.desktop.pages.enterurl.EnterNewURLComponent
-import com.abdownloadmanager.desktop.pages.filehash.FileChecksumComponent
-import com.abdownloadmanager.desktop.pages.filehash.FileChecksumComponentConfig
+import com.abdownloadmanager.UpdateManager
+import com.abdownloadmanager.desktop.pages.addDownload.multiple.DesktopAddMultiDownloadComponent
+import com.abdownloadmanager.desktop.pages.addDownload.single.DesktopAddSingleDownloadComponent
+import com.abdownloadmanager.desktop.pages.batchdownload.DesktopBatchDownloadComponent
+import com.abdownloadmanager.desktop.pages.category.DesktopCategoryDialogManager
+import com.abdownloadmanager.desktop.pages.checksum.DesktopFileChecksumComponent
+import com.abdownloadmanager.desktop.pages.editdownload.DesktopEditDownloadComponent
+import com.abdownloadmanager.desktop.pages.enterurl.DesktopEnterNewURLComponent
 import com.abdownloadmanager.desktop.pages.home.HomeComponent
-import com.abdownloadmanager.desktop.pages.perhostsettings.PerHostSettingsComponent
-import com.abdownloadmanager.desktop.pages.queue.QueuesComponent
-import com.abdownloadmanager.desktop.pages.settings.SettingsComponent
+import com.abdownloadmanager.desktop.pages.perhostsettings.DesktopPerHostSettingsComponent
 import com.abdownloadmanager.desktop.pages.poweractionalert.PowerActionComponent
-import com.abdownloadmanager.desktop.pages.singleDownloadPage.SingleDownloadComponent
-import com.abdownloadmanager.desktop.pages.updater.UpdateComponent
+import com.abdownloadmanager.desktop.pages.queue.QueuesComponent
+import com.abdownloadmanager.desktop.pages.settings.DesktopSettingsComponent
+import com.abdownloadmanager.desktop.pages.singleDownloadPage.DesktopSingleDownloadComponent
 import com.abdownloadmanager.desktop.repository.AppRepository
 import com.abdownloadmanager.desktop.storage.AppSettingsStorage
+import com.abdownloadmanager.desktop.storage.DesktopExtraDownloadItemSettings
+import com.abdownloadmanager.desktop.storage.PageStatesStorage
 import com.abdownloadmanager.desktop.ui.widget.MessageDialogModel
-import com.abdownloadmanager.desktop.ui.widget.MessageDialogType
+import com.abdownloadmanager.desktop.utils.IntegrationPortBroadcaster
+import com.abdownloadmanager.integration.Integration
+import com.abdownloadmanager.integration.IntegrationResult
+import com.abdownloadmanager.resources.Res
+import com.abdownloadmanager.shared.downloaderinui.DownloaderInUiRegistry
+import com.abdownloadmanager.shared.downloaderror.DownloadErrorComponent
+import com.abdownloadmanager.shared.pagemanager.*
+import com.abdownloadmanager.shared.pages.adddownload.AddDownloadComponent
+import com.abdownloadmanager.shared.pages.adddownload.AddDownloadConfig
+import com.abdownloadmanager.shared.pages.adddownload.AddDownloadCredentialsInUiProps
+import com.abdownloadmanager.shared.pages.adddownload.ImportOptions
+import com.abdownloadmanager.shared.pages.category.CategoryComponent
+import com.abdownloadmanager.shared.pages.updater.UpdateComponent
+import com.abdownloadmanager.shared.storage.ExtraDownloadSettingsStorage
+import com.abdownloadmanager.shared.storage.ISelectQueueStorage
+import com.abdownloadmanager.shared.ui.widget.MessageDialogType
 import com.abdownloadmanager.shared.ui.widget.NotificationModel
 import com.abdownloadmanager.shared.ui.widget.NotificationType
-import com.abdownloadmanager.desktop.utils.*
-import com.abdownloadmanager.shared.utils.mvi.ContainsEffects
-import com.abdownloadmanager.shared.utils.mvi.supportEffects
+import com.abdownloadmanager.shared.util.*
+import com.abdownloadmanager.shared.util.category.CategoryManager
+import com.abdownloadmanager.shared.util.category.CategorySelectionMode
+import com.abdownloadmanager.shared.util.category.DefaultCategories
+import com.abdownloadmanager.shared.util.downloaderror.DownloadErrorReason
+import com.abdownloadmanager.shared.util.mvi.ContainsEffects
+import com.abdownloadmanager.shared.util.mvi.supportEffects
+import com.abdownloadmanager.shared.util.notification.platformNotificationSound
+import com.abdownloadmanager.shared.util.perhostsettings.PerHostSettingsManager
 import com.arkivanov.decompose.ComponentContext
+import com.arkivanov.decompose.childContext
 import com.arkivanov.decompose.router.children.ChildNavState
 import com.arkivanov.decompose.router.pages.Pages
 import com.arkivanov.decompose.router.pages.PagesNavigation
@@ -38,44 +55,27 @@ import com.arkivanov.decompose.router.pages.childPages
 import com.arkivanov.decompose.router.pages.navigate
 import com.arkivanov.decompose.router.slot.*
 import ir.amirab.downloader.DownloadManagerEvents
-import ir.amirab.downloader.downloaditem.contexts.ResumedBy
-import ir.amirab.downloader.downloaditem.contexts.User
-import ir.amirab.downloader.queue.DefaultQueueInfo
-import ir.amirab.downloader.utils.ExceptionUtils
-import com.abdownloadmanager.integration.Integration
-import com.abdownloadmanager.integration.IntegrationResult
-import com.abdownloadmanager.resources.*
-import com.abdownloadmanager.shared.downloaderinui.DownloaderInUiRegistry
-import com.abdownloadmanager.shared.utils.BaseComponent
-import com.abdownloadmanager.shared.utils.DownloadItemOpener
-import com.abdownloadmanager.shared.utils.DownloadSystem
-import com.abdownloadmanager.shared.utils.category.CategoryManager
-import com.abdownloadmanager.shared.utils.category.CategorySelectionMode
-import com.abdownloadmanager.shared.utils.perhostsettings.PerHostSettingsManager
-import com.abdownloadmanager.shared.utils.subscribeAsStateFlow
-import com.arkivanov.decompose.childContext
 import ir.amirab.downloader.NewDownloadItemProps
 import ir.amirab.downloader.destination.IncompleteFileUtil
 import ir.amirab.downloader.downloaditem.DownloadStatus
 import ir.amirab.downloader.downloaditem.IDownloadItem
-import ir.amirab.downloader.exception.TooManyErrorException
+import ir.amirab.downloader.downloaditem.contexts.ResumedBy
+import ir.amirab.downloader.downloaditem.contexts.User
 import ir.amirab.downloader.monitor.isDownloadActiveFlow
+import ir.amirab.downloader.queue.DefaultQueueInfo
+import ir.amirab.downloader.queue.QueueManager
+import ir.amirab.util.compose.IIconResolver
 import ir.amirab.util.compose.StringSource
 import ir.amirab.util.compose.asStringSource
-import ir.amirab.util.compose.combineStringSources
 import ir.amirab.util.coroutines.launchWithDeferred
+import ir.amirab.util.desktop.poweraction.PowerActionConfig
 import ir.amirab.util.flow.mapStateFlow
 import ir.amirab.util.osfileutil.FileUtils
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import java.awt.Toolkit
 import kotlin.system.exitProcess
 
 sealed interface AppEffects {
@@ -84,17 +84,13 @@ sealed interface AppEffects {
     ) : AppEffects
 }
 
-interface NotificationSender {
-    fun sendDialogNotification(title: StringSource, description: StringSource, type: MessageDialogType)
-    fun sendNotification(tag: Any, title: StringSource, description: StringSource, type: NotificationType)
-}
-
 class AppComponent(
     ctx: ComponentContext,
 ) : BaseComponent(ctx),
-    DownloadDialogManager,
-    AddDownloadDialogManager,
-    CategoryDialogManager,
+    DesktopDownloadDialogManager,
+    DesktopAddDownloadDialogManager,
+    DownloadErrorDialogManager,
+    DesktopCategoryDialogManager,
     EditDownloadDialogManager,
     FileChecksumDialogManager,
     QueuePageManager,
@@ -103,14 +99,25 @@ class AppComponent(
     PerHostSettingsPageManager,
     PowerActionManager,
     EnterNewURLDialogManager,
+    SettingsPageManager,
+    OpenSourceLibrariesPageManager,
+    TranslatorsPageManager,
+    AboutPageManager,
+    BatchDownloadPageManager,
+    ExitApplicationRequestManager,
     ContainsEffects<AppEffects> by supportEffects(),
     KoinComponent {
     val applicationScope: CoroutineScope by inject()
     val appRepository: AppRepository by inject()
     val appSettings: AppSettingsStorage by inject()
     val downloaderInUiRegistry: DownloaderInUiRegistry by inject()
+    private val queueManager: QueueManager by inject()
+    private val defaultCategories: DefaultCategories by inject()
     private val integration: Integration by inject()
     private val perHostSettingsManager: PerHostSettingsManager by inject()
+    val iconFromUriResolver: IIconResolver by inject()
+    val updaterManager: UpdateManager by inject()
+    val extraDownloadSettingStorage: ExtraDownloadSettingsStorage<DesktopExtraDownloadItemSettings> by inject()
     val useSystemTray = appSettings.useSystemTray
     fun openHome() {
         scope.launch {
@@ -154,12 +161,17 @@ class AppComponent(
                 downloadItemOpener = this,
                 downloadDialogManager = this,
                 enterNewURLDialogManager = this,
-                addDownloadDialogManager = this,
+                desktopAddDownloadDialogManager = this,
                 fileChecksumDialogManager = this,
                 categoryDialogManager = this,
                 notificationSender = this,
                 editDownloadDialogManager = this,
                 queuePageManager = this,
+                categoryManager = categoryManager,
+                downloadSystem = downloadSystem,
+                queueManager = queueManager,
+                defaultCategories = defaultCategories,
+                fileIconProvider = fileIconProvider,
             )
         }
     ).subscribeAsStateFlow()
@@ -190,7 +202,7 @@ class AppComponent(
         serializer = null,
         key = "batchDownload",
         childFactory = { _: BatchDownloadConfig, componentContext: ComponentContext ->
-            BatchDownloadComponent(
+            DesktopBatchDownloadComponent(
                 ctx = componentContext,
                 onClose = this::closeBatchDownload,
                 importLinks = {
@@ -218,7 +230,7 @@ class AppComponent(
         serializer = null,
         key = "editDownload",
         childFactory = { editDownloadConfig: Long, componentContext: ComponentContext ->
-            EditDownloadComponent(
+            DesktopEditDownloadComponent(
                 ctx = componentContext,
                 onRequestClose = {
                     closeEditDownloadDialog()
@@ -237,6 +249,10 @@ class AppComponent(
                 acceptEdit = downloadSystem.downloadMonitor
                     .isDownloadActiveFlow(editDownloadConfig)
                     .mapStateFlow { !it },
+                downloadSystem = downloadSystem,
+                downloaderInUiRegistry = downloaderInUiRegistry,
+                iconProvider = fileIconProvider,
+                downloadErrorDialogManager = this,
             )
         }
     ).subscribeAsStateFlow()
@@ -254,7 +270,7 @@ class AppComponent(
         editDownload.dismiss()
     }
 
-    fun openSettings() {
+    override fun openSettings() {
         scope.launch {
             showSettingSlot.value.child?.instance.let {
                 if (it != null) {
@@ -267,7 +283,7 @@ class AppComponent(
         }
     }
 
-    fun closeSettings() {
+    override fun closeSettings() {
         scope.launch {
             showSettingWindow.dismiss()
         }
@@ -281,15 +297,17 @@ class AppComponent(
         serializer = null,
         key = "settings",
         childFactory = { configuration: AppSettingPageConfig, componentContext: ComponentContext ->
-            SettingsComponent(
+            DesktopSettingsComponent(
                 componentContext,
                 this
             )
         }
     ).subscribeAsStateFlow()
-
+    private val pageStatesStorage: PageStatesStorage by inject()
+    private val selectQueueStorage: ISelectQueueStorage by inject()
 
     val downloadSystem: DownloadSystem by inject()
+    private val fileIconProvider: FileIconProvider by inject()
     private val addDownloadPageControl = PagesNavigation<AddDownloadConfig>()
     val _openedAddDownloadDialogs = childPages(
         key = "openedAddDownloadDialogs",
@@ -303,7 +321,7 @@ class AppComponent(
         childFactory = { config, ctx ->
             val component: AddDownloadComponent = when (config) {
                 is AddDownloadConfig.SingleAddConfig -> {
-                    AddSingleDownloadComponent(
+                    DesktopAddSingleDownloadComponent(
                         ctx = ctx,
                         onRequestClose = {
                             closeAddDownloadDialog(config.id)
@@ -315,19 +333,15 @@ class AppComponent(
                                 categoryId = categoryId,
                             )
                         },
-                        onRequestAddCategory = {
-                            openCategoryDialog(-1)
-                        },
+                        categoryDialogManager = this,
                         onRequestDownload = { item, categoryId ->
                             startNewDownload(
                                 item = item,
                                 categoryId = categoryId,
                             )
-                            closeAddDownloadDialog(config.id)
                         },
                         openExistingDownload = {
                             openDownloadDialog(it)
-                            closeAddDownloadDialog(config.id)
                         },
                         downloadItemOpener = this,
                         updateExistingDownloadCredentials = { id, newCredentials, downloadJobExtraConfig ->
@@ -339,35 +353,59 @@ class AppComponent(
                                         it.withCredentials(newCredentials)
                                     }
                                 )
-                                closeAddDownloadDialog(config.id)
                                 openDownloadDialog(id)
                             }
                         },
+
                         id = config.id,
                         importOptions = config.importOptions,
-                        initialCredentials = config.credentials,
+                        initialCredentials = config.newDownload,
                         downloaderInUi = requireNotNull(
-                            downloaderInUiRegistry.getDownloaderOf(config.credentials.credentials)
+                            downloaderInUiRegistry.getDownloaderOf(config.newDownload.credentials)
                         ),
+                        lastSavedLocationsStorage = pageStatesStorage,
+                        selectQueueStorage = selectQueueStorage,
+                        appScope = applicationScope,
+                        appSettings = appSettings,
+                        appRepository = appRepository,
+                        perHostSettingsManager = perHostSettingsManager,
+                        downloadSystem = downloadSystem,
+                        iconProvider = fileIconProvider,
+                        categoryManager = categoryManager,
+                        queueManager = queueManager,
+                        downloadErrorDialogManager = this,
                     )
                 }
 
                 is AddDownloadConfig.MultipleAddConfig -> {
-                    AddMultiDownloadComponent(
+                    DesktopAddMultiDownloadComponent(
                         ctx = ctx,
                         id = config.id,
                         onRequestClose = { closeAddDownloadDialog(config.id) },
-                        onRequestAdd = { items, queueId, categorySelectionMode ->
+                        onRequestAddMultipleItem = { items, queueId, categorySelectionMode ->
                             addDownloads(
                                 items = items,
                                 queueId = queueId,
                                 categorySelectionMode = categorySelectionMode
                             )
                         },
-                        onRequestAddCategory = {
-                            openCategoryDialog(-1)
+                        onRequestDownloadMultipleItem = { items, categorySelectionMode ->
+                            startNewDownloads(
+                                items = items,
+                                categorySelectionMode = categorySelectionMode
+                            )
                         },
-                    ).apply { addItems(config.links) }
+                        lastSavedLocationsStorage = pageStatesStorage,
+                        selectQueueStorage = selectQueueStorage,
+                        perHostSettingsManager = perHostSettingsManager,
+                        downloadSystem = downloadSystem,
+                        fileIconProvider = fileIconProvider,
+                        appRepository = appRepository,
+                        downloaderInUiRegistry = downloaderInUiRegistry,
+                        queueManager = queueManager,
+                        categoryManager = categoryManager,
+                        categoryDialogManager = this,
+                    ).apply { addItems(config.newDownloads) }
                 }
 
                 else -> error("should not happened")
@@ -380,7 +418,7 @@ class AppComponent(
     }
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
-    private val downloadDialogControl = PagesNavigation<SingleDownloadComponent.Config>()
+    private val downloadDialogControl = PagesNavigation<DesktopSingleDownloadComponent.Config>()
 
     private val _openedDownloadDialogs = childPages(
         key = "openedDownloadDialogs",
@@ -391,13 +429,20 @@ class AppComponent(
             ChildNavState.Status.RESUMED
         },
         childFactory = { cfg, ctx ->
-            SingleDownloadComponent(
+            DesktopSingleDownloadComponent(
                 ctx = ctx,
                 downloadItemOpener = this,
+                downloadErrorDialogManager = this,
                 onDismiss = {
-                    closeDownloadDialog(cfg.id)
+                    closeDownloadDialog(listOf(cfg.id))
                 },
                 downloadId = cfg.id,
+                downloadSystem = downloadSystem,
+                appSettings = appSettings,
+                appRepository = appRepository,
+                applicationScope = applicationScope,
+                fileIconProvider = fileIconProvider,
+                extraDownloadSettingsStorage = extraDownloadSettingStorage,
             )
         }
     ).subscribeAsStateFlow()
@@ -477,16 +522,24 @@ class AppComponent(
         }
     }
 
+    override fun closeCategoryDialog() {
+        scope.launch {
+            categoryPageControl.navigate {
+                Pages()
+            }
+        }
+    }
+
     init {
         downloadSystem.downloadEvents
             .filterIsInstance<DownloadManagerEvents.OnJobRemoved>()
             .onEach {
-                closeDownloadDialog(it.downloadItem.id)
+                closeDownloadDialog(listOf(it.downloadItem.id))
             }.launchIn(scope)
     }
 
     override fun sendNotification(tag: Any, title: StringSource, description: StringSource, type: NotificationType) {
-        beep()
+        beep(type)
         showNotification(tag = tag, title = title, description = description, type = type)
     }
 
@@ -495,14 +548,14 @@ class AppComponent(
         description: StringSource,
         type: MessageDialogType,
     ) {
-        beep()
+        beep(type.toNotificationType())
         newDialogMessage(MessageDialogModel(title = title, description = description, type = type))
     }
 
-    private fun beep() {
-        if (appSettings.notificationSound.value) {
-            Toolkit.getDefaultToolkit().beep()
-        }
+    private fun beep(
+        type: NotificationType,
+    ) {
+        platformNotificationSound().play(type = type)
     }
 
     private fun showNotification(
@@ -571,29 +624,13 @@ class AppComponent(
 ////                    }
 //                }
         if (it is DownloadManagerEvents.OnJobCanceled) {
-            val exception = it.e
-            if (ExceptionUtils.isNormalCancellation(exception)) {
-                return
-            }
-            var isMaxTryReachedError = false
-            val actualCause = if (exception is TooManyErrorException) {
-                isMaxTryReachedError = true
-                exception.findActualDownloadErrorCause()
-            } else exception
-            if (ExceptionUtils.isNormalCancellation(actualCause)) {
-                return
-            }
-            val prefix = if (isMaxTryReachedError) {
-                "Too Many Error: "
-            } else {
-                "Error: "
-            }.asStringSource()
-            val reason = actualCause.message?.asStringSource() ?: Res.string.unknown.asStringSource()
-            sendNotification(
-                "downloadId=${it.downloadItem.id}",
-                title = it.downloadItem.name.asStringSource(),
-                description = listOf(prefix, reason).combineStringSources(),
-                type = NotificationType.Error,
+            val reason = downloadSystem.errorMapperRegistry
+                .getReason(it.e) ?: return
+
+            showDownloadErrorToUser(
+                it.downloadItem,
+                reason,
+                false,
             )
         }
         if (it is DownloadManagerEvents.OnJobCompleted) {
@@ -613,6 +650,60 @@ class AppComponent(
             }
         }
     }
+
+    fun showDownloadErrorToUser(
+        downloadItem: IDownloadItem,
+        reason: DownloadErrorReason,
+        userRequested: Boolean,
+    ) {
+        val downloadProgressIsAlreadyOpen = openedDownloadDialogs.value.find {
+            it.downloadId == downloadItem.id
+        } != null
+        val autoShowDownloadErrorDialog =
+            !downloadProgressIsAlreadyOpen && appSettings.showDownloadCompletionDialog.value
+        if (userRequested || autoShowDownloadErrorDialog) {
+            openDownloadErrorDialog(
+                downloadItem,
+                reason,
+            )
+        } else {
+            sendNotification(
+                "downloadId=${downloadItem.id}",
+                title = downloadItem.name.asStringSource(),
+                description = reason.title.asStringSource(),
+                type = NotificationType.Error,
+            )
+        }
+    }
+
+    private val downloadErrorDialogNavigation = SlotNavigation<DownloadErrorComponent.DownloadErrorConfig>()
+    val downloadErrorDialogSlot = childSlot(
+        source = downloadErrorDialogNavigation,
+        serializer = DownloadErrorComponent.DownloadErrorConfig.serializer(),
+        childFactory = { cfg, cmp ->
+            DownloadErrorComponent(
+                ctx, cfg, ::closeDownloadErrorDialog,
+            )
+        }
+    ).subscribeAsStateFlow()
+
+    override fun openDownloadErrorDialog(downloadItem: IDownloadItem, reason: DownloadErrorReason) {
+        scope.launch {
+            downloadErrorDialogNavigation.activate(
+                DownloadErrorComponent.DownloadErrorConfig(
+                    downloadItem = downloadItem,
+                    errorReason = reason
+                )
+            )
+        }
+    }
+
+    override fun closeDownloadErrorDialog() {
+        scope.launch {
+            downloadErrorDialogNavigation.dismiss()
+        }
+    }
+
 
     override suspend fun openDownloadItem(id: Long) {
         val item = downloadSystem.getDownloadItemById(id)
@@ -749,6 +840,14 @@ class AppComponent(
         }
     }
 
+    override fun closeAddDownloadDialog() {
+        scope.launch {
+            addDownloadPageControl.navigate {
+                Pages()
+            }
+        }
+    }
+
     override fun openDownloadDialog(id: Long) {
         scope.launch {
             val component = openedDownloadDialogs.value.find {
@@ -758,7 +857,7 @@ class AppComponent(
                 component.bringToFront()
             } else {
                 downloadDialogControl.navigate {
-                    val newItems = (it.items.toSet() + SingleDownloadComponent.Config(id)).toList()
+                    val newItems = (it.items.toSet() + DesktopSingleDownloadComponent.Config(id)).toList()
                     val copy = it.copy(
                         items = newItems,
                         selectedIndex = newItems.lastIndex
@@ -770,7 +869,7 @@ class AppComponent(
         }
     }
 
-    override fun closeDownloadDialog(vararg ids: Long) {
+    override fun closeDownloadDialog(ids: List<Long>) {
         scope.launch {
             downloadDialogControl.navigate {
                 val newItems = it.items.filter { config ->
@@ -781,19 +880,28 @@ class AppComponent(
         }
     }
 
-    private val fileChecksumPagesControl = SlotNavigation<FileChecksumComponentConfig>()
+    override fun closeDownloadDialog() {
+        scope.launch {
+            downloadDialogControl.navigate {
+                Pages()
+            }
+        }
+    }
+
+    private val fileChecksumPagesControl = SlotNavigation<DesktopFileChecksumComponent.Config>()
     val openedFileChecksumDialog = childSlot(
         key = "openedFileChecksumPage",
         source = fileChecksumPagesControl,
         serializer = null,
         childFactory = { config, ctx ->
-            FileChecksumComponent(
+            DesktopFileChecksumComponent(
                 ctx = ctx,
                 id = config.id,
                 itemIds = config.itemIds,
                 closeComponent = {
                     closeFileChecksumPage(config.id)
-                }
+                },
+                downloadSystem = downloadSystem,
             )
         }
     ).subscribeAsStateFlow()
@@ -805,7 +913,7 @@ class AppComponent(
                 instance.bringToFront()
             } else {
                 fileChecksumPagesControl.navigate {
-                    FileChecksumComponentConfig(itemIds = ids)
+                    DesktopFileChecksumComponent.Config(itemIds = ids)
                 }
             }
         }
@@ -855,7 +963,24 @@ class AppComponent(
                 queueId = DefaultQueueInfo.ID,
                 categoryId = categoryId,
             ).also {
-                downloadSystem.manualResume(it)
+                downloadSystem.userManualResume(it)
+            }
+        }
+    }
+
+    fun startNewDownloads(
+        items: List<NewDownloadItemProps>,
+        categorySelectionMode: CategorySelectionMode??,
+    ): Deferred<List<Long>> {
+        return scope.launchWithDeferred {
+            downloadSystem.addDownload(
+                newItemsToAdd = items,
+                queueId = DefaultQueueInfo.ID,
+                categorySelectionMode = categorySelectionMode,
+            ).also {
+                it.forEach {
+                    downloadSystem.userManualResume(it)
+                }
             }
         }
     }
@@ -876,7 +1001,7 @@ class AppComponent(
         _showConfirmExitDialog.value = false
     }
 
-    suspend fun requestExitApp() {
+    override suspend fun requestExitApp() {
         val hasActiveDownloads = downloadSystem.downloadMonitor.activeDownloadCount.value > 0
         if (hasActiveDownloads) {
             _showConfirmExitDialog.value = true
@@ -885,7 +1010,7 @@ class AppComponent(
         exitApp()
     }
 
-    fun openAbout() {
+    override fun openAboutPage() {
         showAboutPage.update { true }
     }
 
@@ -893,7 +1018,7 @@ class AppComponent(
         showAboutPage.update { false }
     }
 
-    fun openOpenSourceLibraries() {
+    override fun openOpenSourceLibrariesPage() {
         showOpenSourceLibraries.update { true }
     }
 
@@ -901,11 +1026,11 @@ class AppComponent(
         showOpenSourceLibraries.update { false }
     }
 
-    fun openTranslatorsPage() {
+    override fun openTranslatorsPage() {
         showTranslators.update { true }
     }
 
-    fun closeTranslatorsPage() {
+    override fun closeTranslatorsPage() {
         showTranslators.update { false }
     }
 
@@ -951,7 +1076,7 @@ class AppComponent(
         }
     }
 
-    fun openBatchDownload() {
+    override fun openBatchDownloadPage() {
         scope.launch {
 
             batchDownloadSlot.value.child?.instance.let {
@@ -964,17 +1089,17 @@ class AppComponent(
         }
     }
 
-    fun closeBatchDownload() {
+    override fun closeBatchDownload() {
         batchDownload.dismiss()
     }
 
-    val enterNewURLWindow = SlotNavigation<EnterNewURLComponent.Config>()
+    val enterNewURLWindow = SlotNavigation<DesktopEnterNewURLComponent.Config>()
     val enterNewURLWindowSlot = childSlot(
         enterNewURLWindow,
         serializer = null,
         key = "enterNewURLWindow",
-        childFactory = { configuration: EnterNewURLComponent.Config, componentContext: ComponentContext ->
-            EnterNewURLComponent(
+        childFactory = { configuration: DesktopEnterNewURLComponent.Config, componentContext: ComponentContext ->
+            DesktopEnterNewURLComponent(
                 ctx = componentContext,
                 config = configuration,
                 downloaderInUiRegistry = downloaderInUiRegistry,
@@ -983,7 +1108,6 @@ class AppComponent(
                 },
                 onRequestFinished = { credentials ->
                     scope.launch {
-                        closeEnterNewURLWindow()
                         openAddDownloadDialog(
                             links = listOf(
                                 AddDownloadCredentialsInUiProps(
@@ -1004,7 +1128,7 @@ class AppComponent(
                     it.bringToFront()
                 } else {
                     enterNewURLWindow.activate(
-                        EnterNewURLComponent.Config
+                        DesktopEnterNewURLComponent.Config
                     )
                 }
             }
@@ -1082,16 +1206,17 @@ class AppComponent(
     val updater = UpdateComponent(
         childContext("updater"),
         this,
+        updaterManager,
     )
 
 
-    private val perHostSettings = SlotNavigation<PerHostSettingsComponent.Config>()
+    private val perHostSettings = SlotNavigation<DesktopPerHostSettingsComponent.Config>()
     val perHostSettingsSlot = childSlot(
         perHostSettings,
         serializer = null,
         key = "perHostSettings",
-        childFactory = { cfg: PerHostSettingsComponent.Config, componentContext: ComponentContext ->
-            PerHostSettingsComponent(
+        childFactory = { cfg: DesktopPerHostSettingsComponent.Config, componentContext: ComponentContext ->
+            DesktopPerHostSettingsComponent(
                 ctx = componentContext,
                 closeRequested = this::closePerHostSettings,
                 appScope = applicationScope,
@@ -1114,7 +1239,7 @@ class AppComponent(
                         component.onHostSelected(it)
                     }
                 } else {
-                    perHostSettings.activate(PerHostSettingsComponent.Config(openedHost))
+                    perHostSettings.activate(DesktopPerHostSettingsComponent.Config(openedHost))
                 }
             }
         }
@@ -1132,47 +1257,14 @@ class AppComponent(
     val uiScale = appRepository.uiScale
 }
 
-interface DownloadDialogManager {
-    val openedDownloadDialogs: StateFlow<List<SingleDownloadComponent>>
-    fun openDownloadDialog(id: Long)
-    fun closeDownloadDialog(vararg ids: Long)
+interface DesktopDownloadDialogManager : DownloadDialogManager {
+    val openedDownloadDialogs: StateFlow<List<DesktopSingleDownloadComponent>>
+    fun closeDownloadDialog(ids: List<Long>)
 }
 
-interface EditDownloadDialogManager {
-    fun openEditDownloadDialog(id: Long)
-    fun closeEditDownloadDialog()
-}
-
-interface AddDownloadDialogManager {
+interface DesktopAddDownloadDialogManager : AddDownloadDialogManager {
     val openedAddDownloadDialogs: StateFlow<List<AddDownloadComponent>>
-    fun openAddDownloadDialog(
-        links: List<AddDownloadCredentialsInUiProps>,
-        importOptions: ImportOptions = ImportOptions(),
-    )
-
     fun closeAddDownloadDialog(dialogId: String)
-}
-
-interface EnterNewURLDialogManager {
-    fun openEnterNewURLWindow()
-    fun closeEnterNewURLWindow()
-}
-
-interface FileChecksumDialogManager {
-    fun openFileChecksumPage(ids: List<Long>)
-
-    fun closeFileChecksumPage(dialogId: String)
-}
-
-interface QueuePageManager {
-    fun openQueues(
-        openQueueId: Long? = null
-    )
-
-    fun closeQueues()
-
-    fun openNewQueueDialog()
-    fun closeNewQueueDialog()
 }
 
 interface PowerActionManager {
@@ -1184,7 +1276,3 @@ interface PowerActionManager {
     fun dismissPowerAction()
 }
 
-interface PerHostSettingsPageManager {
-    fun openPerHostSettings(openedHost: String?)
-    fun closePerHostSettings()
-}

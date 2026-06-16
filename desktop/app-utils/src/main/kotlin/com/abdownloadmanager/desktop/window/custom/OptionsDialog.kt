@@ -2,7 +2,7 @@ package com.abdownloadmanager.desktop.window.custom
 
 import androidx.compose.runtime.*
 import androidx.compose.ui.window.*
-import com.abdownloadmanager.shared.utils.ui.theme.UiScaledContent
+import com.abdownloadmanager.shared.util.ui.theme.UiScaledContent
 import java.awt.event.WindowEvent
 import java.awt.event.WindowFocusListener
 
@@ -17,9 +17,11 @@ fun BaseOptionDialog(
     DialogWindow(
         visible = true,
         state = state,
-        undecorated = true,
+        decoration = WindowDecoration.Undecorated(),
         transparent = true,
         resizable = resizeable,
+        //we need this to allow click outside
+        modalityType = DialogModalityType.Modeless,
         onCloseRequest = onCloseRequest,
     ) {
         val focusListener = remember {
@@ -34,10 +36,8 @@ fun BaseOptionDialog(
             }
         }
         DisposableEffect(window) {
-            window.addWindowFocusListener(focusListener);
+            window.addWindowFocusListener(focusListener)
             window.isAlwaysOnTop = true
-            //we need this to allow click outside
-            window.modalityType = java.awt.Dialog.ModalityType.MODELESS
             onDispose {
                 window.removeWindowFocusListener(focusListener)
             }

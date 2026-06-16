@@ -1,34 +1,26 @@
 package com.abdownloadmanager.desktop.pages.category
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.*
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.abdownloadmanager.desktop.pages.addDownload.single.MyTextFieldIcon
+import com.abdownloadmanager.shared.ui.widget.MyTextFieldIcon
 import com.abdownloadmanager.desktop.window.custom.WindowTitle
-import com.abdownloadmanager.shared.utils.ui.icon.MyIcons
+import com.abdownloadmanager.shared.util.ui.icon.MyIcons
 import com.abdownloadmanager.shared.ui.widget.*
-import com.abdownloadmanager.shared.utils.ui.myColors
-import com.abdownloadmanager.shared.utils.ui.theme.myTextSizes
+import com.abdownloadmanager.shared.util.ui.myColors
 import ir.amirab.util.ifThen
-import com.abdownloadmanager.shared.utils.div
+import com.abdownloadmanager.shared.util.div
 import com.abdownloadmanager.resources.Res
-import com.abdownloadmanager.shared.utils.ui.WithContentAlpha
-import com.abdownloadmanager.shared.utils.ui.theme.myShapes
-import com.abdownloadmanager.shared.utils.ui.widget.MyIcon
-import io.github.vinceglb.filekit.compose.rememberDirectoryPickerLauncher
-import io.github.vinceglb.filekit.core.FileKitPlatformSettings
+import com.abdownloadmanager.shared.pages.category.CategoryComponent
+import com.abdownloadmanager.shared.util.ui.widget.MyIcon
 import ir.amirab.util.compose.IconSource
 import ir.amirab.util.compose.resources.myStringResource
-import ir.amirab.util.desktop.LocalWindow
+import com.abdownloadmanager.desktop.ui.util.rememberMyDirectoryPickerLauncher
 import java.io.File
 
 @Composable
@@ -131,14 +123,12 @@ fun CategoryDefaultPath(
                 }.getOrNull()
             } ?: defaultDownloadLocation
     }
-    val downloadFolderPickerLauncher = rememberDirectoryPickerLauncher(
+    val downloadFolderPickerLauncher = rememberMyDirectoryPickerLauncher(
         title = myStringResource(Res.string.category_download_location),
         initialDirectory = initialDirectory,
-        platformSettings = FileKitPlatformSettings(
-            parentWindow = LocalWindow.current
-        )
+        attachToWindow = true
     ) { directory ->
-        directory?.path?.let(onPathChanged)
+        directory?.let(onPathChanged)
     }
 
     OptionalWithLabel(
@@ -147,7 +137,7 @@ fun CategoryDefaultPath(
         enabled = checked,
         setEnabled = setChecked,
     ) {
-        CategoryPageTextField(
+        MyTextFieldWithIcons(
             text = path,
             onTextChange = onPathChanged,
             modifier = Modifier.fillMaxWidth(),
@@ -179,7 +169,7 @@ fun CategoryAutoTypes(
         enabled = enabled,
         setEnabled = setEnabled,
     ) {
-        CategoryPageTextField(
+        MyTextFieldWithIcons(
             text = types,
             onTextChange = onTypesChanged,
             modifier = Modifier.fillMaxWidth(),
@@ -203,7 +193,7 @@ fun CategoryAutoUrls(
         enabled = enabled,
         setEnabled = setEnabled
     ) {
-        CategoryPageTextField(
+        MyTextFieldWithIcons(
             text = urlPatterns,
             onTextChange = onUrlPatternChanged,
             modifier = Modifier.fillMaxWidth(),
@@ -224,7 +214,7 @@ fun CategoryName(
         myStringResource(Res.string.category_name),
         modifier,
     ) {
-        CategoryPageTextField(
+        MyTextFieldWithIcons(
             text = name,
             onTextChange = onNameChanged,
             modifier = Modifier.fillMaxWidth(),
@@ -403,68 +393,3 @@ private fun RenderIcon(
         }
     }
 }
-
-
-@Composable
-private fun CategoryPageTextField(
-    text: String,
-    onTextChange: (String) -> Unit,
-    placeholder: String,
-    modifier: Modifier,
-    errorText: String? = null,
-    singleLine: Boolean = true,
-    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
-    minLines: Int = 1,
-    enabled: Boolean = true,
-    start: @Composable (() -> Unit)? = null,
-    end: @Composable (() -> Unit)? = null,
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isFocused by interactionSource.collectIsFocusedAsState()
-    val dividerModifier = Modifier
-        .fillMaxHeight()
-        .padding(vertical = 1.dp)
-        //to not conflict with text-field border
-        .width(1.dp)
-        .background(if (isFocused) myColors.onBackground / 10 else Color.Transparent)
-    Column(modifier) {
-        MyTextField(
-            text = text,
-            onTextChange = onTextChange,
-            placeholder = placeholder,
-            modifier = Modifier.fillMaxWidth(),
-            maxLines = maxLines,
-            minLines = minLines,
-            singleLine = singleLine,
-            background = myColors.surface / 50,
-            interactionSource = interactionSource,
-            shape = myShapes.defaultRounded,
-            enabled = enabled,
-            start = start?.let {
-                {
-                    WithContentAlpha(0.5f) {
-                        it()
-                    }
-                    Spacer(dividerModifier)
-                }
-            },
-            end = end?.let {
-                {
-                    Spacer(dividerModifier)
-                    it()
-                }
-            }
-        )
-        AnimatedVisibility(errorText != null) {
-            if (errorText != null) {
-                Text(
-                    errorText,
-                    Modifier.padding(bottom = 4.dp, start = 4.dp),
-                    fontSize = myTextSizes.sm,
-                    color = myColors.error,
-                )
-            }
-        }
-    }
-}
-

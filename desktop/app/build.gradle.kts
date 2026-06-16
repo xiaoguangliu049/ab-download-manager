@@ -7,13 +7,12 @@ import ir.amirab.util.platform.Platform
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat.*
 import com.mikepenz.aboutlibraries.plugin.DuplicateMode
 import com.mikepenz.aboutlibraries.plugin.DuplicateRule
+import ir.amirab.util.platform.Arch
 
 plugins {
     id(MyPlugins.kotlin)
     id(MyPlugins.composeDesktop)
     id(Plugins.Kotlin.serialization)
-    id(Plugins.buildConfig)
-    id(Plugins.changeLog)
     id(Plugins.ksp)
     id(Plugins.aboutLibraries)
     id("ir.amirab.installer-plugin")
@@ -50,9 +49,6 @@ dependencies {
     implementation(libs.composeFileKit) {
         exclude(group = "net.java.dev.jna")
     }
-    implementation(libs.osThemeDetector) {
-        exclude(group = "net.java.dev.jna")
-    }
     implementation(libs.proxyVole) {
         exclude(group = "net.java.dev.jna")
     }
@@ -66,32 +62,14 @@ dependencies {
     implementation(project(":desktop:shared"))
     implementation(project(":desktop:app-utils"))
 
-    implementation(project(":desktop:tray:common"))
-
-    // Detection based on the operating system
-    when (Platform.getCurrentPlatform()) {
-        Platform.Desktop.Windows -> {
-            implementation(project(":desktop:tray:windows"))
-        }
-
-        Platform.Desktop.Linux -> {
-            implementation(project(":desktop:tray:linux"))
-        }
-
-        Platform.Desktop.MacOS -> {
-            implementation(project(":desktop:tray:mac"))
-        }
-
-        else -> Unit
-    }
+    implementation(libs.composeNativeTray)
 
     implementation(project(":shared:app"))
-    implementation(project(":shared:app-utils"))
     implementation(project(":shared:utils"))
     implementation(project(":shared:updater"))
-    implementation(project(":shared:auto-start"))
     implementation(project(":shared:nanohttp4k"))
     implementation(project(":desktop:mac_utils"))
+    implementation(project(":desktop:slf4j-impl"))
 }
 
 aboutLibraries {
@@ -128,6 +106,8 @@ compose {
             // Define the main class for the application.
             mainClass = "$desktopPackageName.AppKt"
             nativeDistributions {
+                // avoid java 25 warning
+                jvmArgs("--enable-native-access=ALL-UNNAMED")
                 modules(
                     "java.instrument",
                     "jdk.unsupported",
@@ -216,101 +196,8 @@ installerPlugin {
 }
 
 
-// generate a file with these constants
-buildConfig {
-    packageName = desktopPackageName
-    buildConfigField(
-        "PACKAGE_NAME",
-        provider {
-            getApplicationPackageName()
-        }
-    )
-    buildConfigField(
-        "APP_DISPLAY_NAME",
-        provider { getPrettifiedAppName() }
-    )
-    buildConfigField(
-        "DATA_DIR_NAME",
-        provider { getAppDataDirName() }
-    )
-    buildConfigField(
-        "APP_VERSION",
-        provider { getAppVersionString() }
-    )
-    buildConfigField(
-        "APP_NAME",
-        provider { getAppName() }
-    )
-    buildConfigField(
-        "PROJECT_WEBSITE",
-        provider {
-            "https://abdownloadmanager.com"
-        }
-    )
-    buildConfigField(
-        "PROJECT_SOURCE_CODE",
-        provider {
-            "https://github.com/amir1376/ab-download-manager"
-        }
-    )
-    buildConfigField(
-        "DONATE_LINK",
-        provider {
-            "https://github.com/amir1376/ab-download-manager/blob/master/DONATE.md"
-        }
-    )
-    buildConfigField(
-        "PROJECT_GITHUB_OWNER",
-        provider {
-            "amir1376"
-        }
-    )
-    buildConfigField(
-        "PROJECT_GITHUB_REPO",
-        provider {
-            "ab-download-manager"
-        }
-    )
-    buildConfigField(
-        "PROJECT_TRANSLATIONS",
-        provider {
-            "https://crowdin.com/project/ab-download-manager"
-        }
-    )
-    buildConfigField(
-        "INTEGRATION_CHROME_LINK",
-        provider {
-            "https://chromewebstore.google.com/detail/ab-download-manager-brows/bbobopahenonfdgjgaleledndnnfhooj"
-        }
-    )
-    buildConfigField(
-        "INTEGRATION_FIREFOX_LINK",
-        provider {
-            "https://addons.mozilla.org/en-US/firefox/addon/ab-download-manager/"
-        }
-    )
-    buildConfigField(
-        "TELEGRAM_GROUP",
-        provider {
-            "https://t.me/abdownloadmanager_discussion"
-        }
-    )
-    buildConfigField(
-        "TELEGRAM_CHANNEL",
-        provider {
-            "https://t.me/abdownloadmanager"
-        }
-    )
-}
-
-
-changelog {
-    path.set(rootProject.layout.projectDirectory.dir("CHANGELOG.md").asFile.path)
-    version.set(getAppVersionString())
-}
-
 // ======= begin of GitHub action stuff
-val ciDir = CiDirs(rootProject.layout.buildDirectory)
+val ciDir = CiUtils.getCiDir(project)
 
 val appPackageNameByComposePlugin
     get() = requireNotNull(compose.desktop.application.nativeDistributions.packageName) {
@@ -358,7 +245,7 @@ val createDistributableAppArchive by tasks.registering {
     }
 }
 
-val createBinariesForCi by tasks.registering {
+tasks.register(CiUtils.getCreateBinaryFolderForCiTaskName()) {
     if (installerPlugin.isThisPlatformSupported()) {
         dependsOn(installerPlugin.createInstallerTask)
         inputs.dir(installerPlugin.outputFolder)
@@ -370,17 +257,16 @@ val createBinariesForCi by tasks.registering {
     doLast {
         val output = ciDir.binariesDir.get().asFile
         val packageName = appPackageNameByComposePlugin
-        output.deleteRecursively()
 
         if (installerPlugin.isThisPlatformSupported()) {
             val targets = installerPlugin.getCreatedInstallerTargetFormats()
             for (target in targets) {
                 CiUtils.movePackagedAndCreateSignature(
-                    getAppVersion(),
-                    packageName,
-                    target,
-                    installerPlugin.outputFolder.get().asFile,
-                    output,
+                    appVersion = getAppVersion(),
+                    packageName = packageName,
+                    target = target,
+                    basePackagedAppsDir = installerPlugin.outputFolder.get().asFile,
+                    outputDir = output,
                 )
             }
             logger.lifecycle("app packages for '${targets.joinToString(", ") { it.name }}' written in $output using the installer plugin")
@@ -397,30 +283,11 @@ val createBinariesForCi by tasks.registering {
                 packageName,
                 getAppVersion(),
                 null, // this is not an installer (it will be automatically converted to current os name
+                Arch.getCurrentArch().name
             )
         )
         logger.lifecycle("distributable app archive written in ${output}")
     }
-}
-
-val createChangeNoteForCi by tasks.registering {
-    inputs.property("appVersion", getAppVersionString())
-    inputs.file(changelog.path)
-    outputs.file(ciDir.changeNotesFile)
-    doLast {
-        val output = ciDir.changeNotesFile.get().asFile
-        val bodyText = with(changelog) {
-            getOrNull(getAppVersionString())?.let { item ->
-                renderItem(item, Changelog.OutputType.MARKDOWN)
-            }
-        }.orEmpty()
-        logger.lifecycle("changeNotes written in $output")
-        output.writeText(bodyText)
-    }
-}
-
-val createReleaseFolderForCi by tasks.registering {
-    dependsOn(createBinariesForCi, createChangeNoteForCi)
 }
 // ======= end of GitHub action stuff
 

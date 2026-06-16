@@ -12,6 +12,17 @@
     <a href="https://crowdin.com/project/ab-download-manager"><img alt="Crowdin" src="https://badges.crowdin.net/ab-download-manager/localized.svg"></a>
 </p>
 
+<p align="center">
+  <a href="https://trendshift.io/repositories/13372" target="_blank"><img src="https://trendshift.io/api/badge/repositories/13372" alt="amir1376%2Fab-download-manager | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+  <a href="https://hellogithub.com/repository/amir1376/ab-download-manager" target="_blank">
+    <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=ed035ce95345465c813490be631f1917&claim_uid=RTjPbAI9LNG6mnJ&theme=dark" height="55">
+        <source media="(prefers-color-scheme: light)" srcset="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=ed035ce95345465c813490be631f1917&claim_uid=RTjPbAI9LNG6mnJ&theme=neutral" height="55">
+        <img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=ed035ce95345465c813490be631f1917&claim_uid=RTjPbAI9LNG6mnJ&theme=neutral" alt="Featured｜HelloGitHub" style="width: 250px; height: 55px;" width="250" height="55" />
+    </picture>
+</a>
+</p>
+
 <a href="https://abdownloadmanager.com" target="_blank">
     <img alt="AB Download Manager Banner" src="assets/banners/app_banner.png"/>
 </a>
@@ -26,8 +37,8 @@
 - ⚡️ Faster Download Speed
 - ⏰ Queues and Schedulers
 - 🌐 Browser Extensions
-- 💻 Multiplatform (Windows / Linux / Mac)
-- 🌙 Multiple Themes (Dark/Light) with modern UI
+- 💻 Multiplatform (Android / Windows / Linux / Mac)
+- 🌙 Multiple Themes (Dark/Light/Black and more) with modern UI
 - ❤️ Free and Open Source
 
 Please visit [Project Website](https://abdownloadmanager.com) for more info.
@@ -59,11 +70,15 @@ winget install amir1376.ABDownloadManager
 scoop install extras/abdownloadmanager
 ```
 
-#### Homebrew (for macOS)
+#### Homebrew (for macOS & Linux)
 
 ```bash
 brew tap amir1376/tap && brew install --cask ab-download-manager
 ```
+
+> ⚠️ **Warning:** This software is NOT on Google Play or other app stores unless listed here. Any version **claiming to be or related to this project** should be considered SCAM and UNSAFE.
+
+For alternative installation methods, uninstallation instructions, and more details, please refer to the [wiki](https://github.com/amir1376/ab-download-manager/wiki/) page.
 
 ### Browser Extensions
 
@@ -170,15 +185,7 @@ so on Crowdin. Here’s how:
 
 ## Contribution
 
-> ❌ **Important Notice:** The entire codebase is being completely rewritten. Pull requests are **not accepted** at this
-> time, as incoming changes may be lost or conflict heavily with ongoing refactoring. Please wait until the refactor is
-> complete before submitting any PRs.
-
-Contributions to this project are very welcome!
-
 If you want to contribute to this project, please read [Contributing Guide](CONTRIBUTING.md) first.
-
-Let's make a better Download Manager together! ❤️
 
 ## Support the Project
 
